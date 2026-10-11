@@ -467,6 +467,8 @@ public sealed class InstallerForm : Form
                 {
                     try
                     {
+                        ValidateReplacementMode();
+
                         string removalXml =
                             CreateRemovalConfiguration();
 
@@ -1107,6 +1109,203 @@ public sealed class InstallerForm : Form
             ? "x86"
             : "x64";
 
+    private void ValidateDownloadedOfficeFiles()
+    {
+        string downloadFolder = GetOfficeDownloadFolder();
+
+        string dataFolder = Path.Combine(
+            downloadFolder,
+            "Office",
+            "Data"
+        );
+
+        if (!Directory.Exists(dataFolder))
+        {
+            throw new InvalidOperationException(
+                "Не найден каталог скачанного Office: " +
+                dataFolder
+            );
+        }
+
+        bool hasCabFiles = Directory
+            .EnumerateFiles(
+                dataFolder,
+                "*.cab",
+                SearchOption.AllDirectories
+            )
+            .Any();
+
+        bool hasDatFiles = Directory
+            .EnumerateFiles(
+                dataFolder,
+                "*.dat",
+                SearchOption.AllDirectories
+            )
+            .Any();
+
+        if (!hasCabFiles || !hasDatFiles)
+        {
+            throw new InvalidOperationException(
+                "Дистрибутив Office загружен не полностью. " +
+                "Не найдены необходимые CAB или DAT-файлы."
+            );
+        }
+
+        InstallerLogger.Write(
+            "Предварительная проверка файлов Office пройдена: " +
+            dataFolder
+        );
+    }
+
+    private void ValidateRemovalConfiguration(string removalXml)
+    {
+        // Повторно считываем установленную конфигурацию.
+        RefreshOfficeEdition();
+        ValidateReplacementMode();
+
+        var document = XDocument.Parse(removalXml);
+
+        var removeElement =
+            document.Root?.Element("Remove")
+            ?? throw new InvalidOperationException(
+                "В XML отсутствует элемент Remove."
+            );
+
+        string[] xmlProducts = removeElement
+            .Elements("Product")
+            .Select(element =>
+                (string?)element.Attribute("ID") ?? "")
+            .ToArray();
+
+        string[] currentProducts = GetProductIds();
+
+        if (xmlProducts.Length != currentProducts.Length ||
+            xmlProducts.Distinct(
+                StringComparer.OrdinalIgnoreCase
+            ).Count() != xmlProducts.Length ||
+            currentProducts.Except(
+                xmlProducts,
+                StringComparer.OrdinalIgnoreCase
+            ).Any())
+        {
+            throw new InvalidOperationException(
+                "Список установленных продуктов Office изменился. " +
+                "Операция удаления отменена."
+            );
+        }
+
+        InstallerLogger.Write(
+            "Список продуктов в XML удаления соответствует " +
+            "текущей конфигурации Office."
+        );
+    }
+
+    private bool ConfirmOfficeReplacement(string removalXml)
+    {
+        ValidateRemovalConfiguration(removalXml);
+
+        var document = XDocument.Parse(removalXml);
+
+        string[] productsToRemove = document.Root!
+            .Element("Remove")!
+            .Elements("Product")
+            .Select(element =>
+                (string?)element.Attribute("ID") ?? "")
+            .ToArray();
+
+        string products = string.Join(
+            Environment.NewLine,
+            productsToRemove.Select(id => "  - " + id)
+        );
+
+        string message =
+            "ВНИМАНИЕ! ЗАМЕНА MICROSOFT OFFICE" +
+            Environment.NewLine +
+            Environment.NewLine +
+            "Будут удалены следующие продукты:" +
+            Environment.NewLine +
+            products +
+            Environment.NewLine +
+            Environment.NewLine +
+            $"После удаления будет запущена установка Office LTSC {SelectedOfficeYear}." +
+            Environment.NewLine +
+            Environment.NewLine +
+            "Если установка новой версии завершится ошибкой, " +
+            "Office может остаться удалённым." +
+            Environment.NewLine +
+            Environment.NewLine +
+            "Автоматический откат не предусмотрен." +
+            Environment.NewLine +
+            Environment.NewLine +
+            "Продолжить замену?";
+
+        return MessageBox.Show(
+            this,
+            message,
+            "Подтверждение удаления Office",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2
+        ) == DialogResult.Yes;
+    }
+
+    private void ValidateReplacementMode()
+    {
+        if (!replacementModeBox.Checked)
+        {
+            throw new InvalidOperationException(
+                "Режим замены Office не включён."
+            );
+        }
+
+        if (SelectedOfficeYear != 2024)
+        {
+            throw new InvalidOperationException(
+                "Сейчас поддерживается только переход " +
+                "с Office LTSC 2021 на Office LTSC 2024."
+            );
+        }
+
+        if (detectedOffice == null ||
+            !detectedOffice.ClickToRunDetected)
+        {
+            throw new InvalidOperationException(
+                "Не обнаружен Office Click-to-Run."
+            );
+        }
+
+        string installedArchitecture =
+            detectedOffice.Architecture;
+
+        if (!installedArchitecture.Equals(
+            SelectedArchitecture,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Для первого этапа замены архитектура должна " +
+                "совпадать с установленной. " +
+                $"Установлено: {installedArchitecture}; " +
+                $"выбрано: {SelectedArchitecture}."
+            );
+        }
+
+        string[] ids = GetProductIds();
+
+        if (!ids.Contains(
+            "ProPlus2021Volume",
+            StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Для замены требуется установленный " +
+                "Office LTSC Professional Plus 2021."
+            );
+        }
+
+        // Генератор XML также проверяет,
+        // что неизвестных продуктов нет.
+        _ = CreateRemovalConfiguration();
+    }
+
     private string CreateRemovalConfiguration()
     {
         if (detectedOffice == null ||
@@ -1128,6 +1327,23 @@ public sealed class InstallerForm : Form
             "VisioPro2021Volume",
             "VisioStd2021Volume"
         };
+
+        string[] unsupportedProducts = installedProducts
+            .Where(id => !supportedProducts.Contains(
+                id,
+                StringComparer.OrdinalIgnoreCase
+            ))
+            .ToArray();
+
+        if (unsupportedProducts.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "Обнаружены продукты, для которых безопасная " +
+                "замена пока не реализована: " +
+                string.Join(", ", unsupportedProducts) +
+                ". Удаление заблокировано."
+            );
+        }
 
         string[] productsToRemove = installedProducts
             .Where(id => supportedProducts.Contains(
@@ -1274,6 +1490,20 @@ public sealed class InstallerForm : Form
 
     private string? GetInstallationBlockReason()
     {
+        if (replacementModeBox.Checked)
+        {
+            try
+            {
+                ValidateReplacementMode();
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return "Замена Office заблокирована: " +
+                    ex.Message;
+            }
+        }
+
         if (detectedOffice == null)
         {
             return "Не удалось проверить установленный Office.";
@@ -1564,6 +1794,9 @@ public sealed class InstallerForm : Form
         refresh.Enabled = !busy;
         architectureBox.Enabled = !busy;
         officeVersionBox.Enabled = !busy;
+        replacementModeBox.Enabled = !busy;
+        projectBox.Enabled = !busy;
+        visioBox.Enabled = !busy;
 
         foreach (CheckBox box in boxes.Values)
         {
@@ -1628,6 +1861,21 @@ public sealed class InstallerForm : Form
     private async Task InstallAsync()
     {
         InstallerLogger.Write("Получен запрос на установку Office.");
+
+        if (replacementModeBox.Checked)
+        {
+            MessageBox.Show(
+                this,
+                "Режим замены Office пока находится в разработке.\n\n" +
+                "Удаление существующих продуктов отключено. " +
+                "Используйте кнопку «Посмотреть план замены».",
+                "Замена Office пока недоступна",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information
+            );
+
+            return;
+        }
 
         if (!boxes.Values.Any(box => box.Checked))
         {
@@ -1785,6 +2033,12 @@ public sealed class InstallerForm : Form
                     );
                 }
             }
+
+            InstallerLogger.Write(
+                "Проверка локальных файлов Office после загрузки."
+            );
+
+            ValidateDownloadedOfficeFiles();
 
             SetInstallationStage(
                 4,
