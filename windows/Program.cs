@@ -889,12 +889,10 @@ public sealed class InstallerForm : Form
     {
         if (detectedOffice == null)
         {
-            return
-                "Не удалось проверить установленный Office.";
+            return "Не удалось проверить установленный Office.";
         }
 
-        string existingArchitecture =
-            detectedOffice.Architecture;
+        string existingArchitecture = detectedOffice.Architecture;
 
         bool knownArchitecture =
             existingArchitecture.Equals(
@@ -921,9 +919,9 @@ public sealed class InstallerForm : Form
             ))
         {
             return
-                $"Установлен Office {existingArchitecture}, " +
+                $"Несовместимая архитектура: установлен {existingArchitecture}, " +
                 $"а выбран {SelectedArchitecture}. " +
-                "Архитектуры не совпадают.";
+                "Для продуктов Click-to-Run архитектуры должны совпадать.";
         }
 
         if (!detectedOffice.ClickToRunDetected)
@@ -936,16 +934,75 @@ public sealed class InstallerForm : Form
 
         string[] ids = GetProductIds();
 
-        if (ids.Length == 0 ||
-            ids.Any(id => !id.Equals(
-                "ProPlus2024Volume",
-                StringComparison.OrdinalIgnoreCase
-            )))
+        if (ids.Length == 0)
         {
             return
-                "Обнаружены другие продукты Office, " +
-                "Project или Visio. Для установки LTSC 2024 " +
-                "необходима дополнительная проверка совместимости.";
+                "Обнаружен Office Click-to-Run, " +
+                "но идентификаторы продуктов определить не удалось.";
+        }
+
+        var incompatibleProducts = new List<string>();
+
+        foreach (string id in ids)
+        {
+            if (id.Equals(
+                "ProPlus2024Volume",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string productName = id switch
+            {
+                "ProPlus2021Volume" =>
+                    "Office LTSC Professional Plus 2021",
+
+                "Standard2021Volume" =>
+                    "Office LTSC Standard 2021",
+
+                "ProjectPro2021Volume" =>
+                    "Project Professional 2021",
+
+                "ProjectStd2021Volume" =>
+                    "Project Standard 2021",
+
+                "VisioPro2021Volume" =>
+                    "Visio Professional 2021",
+
+                "VisioStd2021Volume" =>
+                    "Visio Standard 2021",
+
+                "ProPlus2019Volume" =>
+                    "Office Professional Plus 2019",
+
+                "Standard2019Volume" =>
+                    "Office Standard 2019",
+
+                "ProjectPro2019Volume" =>
+                    "Project Professional 2019",
+
+                "VisioPro2019Volume" =>
+                    "Visio Professional 2019",
+
+                _ => id
+            };
+
+            incompatibleProducts.Add(productName);
+        }
+
+        if (incompatibleProducts.Count > 0)
+        {
+            string products = string.Join(
+                "; ",
+                incompatibleProducts
+            );
+
+            return
+                "Обнаружены продукты, совместимость которых " +
+                "с установкой Office LTSC 2024 не подтверждена: " +
+                products + ". " +
+                $"Установленная архитектура: {existingArchitecture}. " +
+                $"Выбранная архитектура: {SelectedArchitecture}.";
         }
 
         return null;
