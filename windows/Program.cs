@@ -18,21 +18,15 @@ public sealed class InstallerForm : Form
         "fbb64358fd4168acd52ee4efe47ffd032b6231dfb415ae2dce61b0e58ba67f86";
 
     private static readonly string OdtFolder = Path.Combine(
-        Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData
-        ),
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "OfficeInstaller",
         "ODT"
     );
 
     private static readonly string[] Apps =
     {
-        "Word",
-        "Excel",
-        "PowerPoint",
-        "Outlook",
-        "OneNote",
-        "Access"
+        "Word", "Excel", "PowerPoint",
+        "Outlook", "OneNote", "Access"
     };
 
     private static readonly Dictionary<string, string> Executables = new()
@@ -45,151 +39,160 @@ public sealed class InstallerForm : Form
         ["Access"] = "MSACCESS.EXE"
     };
 
+    private static readonly Color Background = Color.FromArgb(246, 248, 251);
+    private static readonly Color Surface = Color.White;
+    private static readonly Color TextPrimary = Color.FromArgb(35, 43, 56);
+    private static readonly Color TextSecondary = Color.FromArgb(100, 112, 128);
+    private static readonly Color Accent = Color.FromArgb(37, 99, 235);
+    private static readonly Color Success = Color.FromArgb(22, 132, 83);
+    private static readonly Color Danger = Color.FromArgb(190, 48, 55);
+
     private readonly Dictionary<string, CheckBox> boxes = new();
     private readonly Dictionary<string, Label> appStatuses = new();
 
-    private readonly Label editionLabel = CreateInfoLabel();
-    private readonly Label productLabel = CreateInfoLabel();
-    private readonly Label architectureLabel = CreateInfoLabel();
-    private readonly Label versionLabel = CreateInfoLabel();
-    private readonly Label channelLabel = CreateInfoLabel();
-    private readonly Label compatibilityLabel = CreateInfoLabel();
+    private readonly Label officeProductLabel = CreateValueLabel();
+    private readonly Label projectProductLabel = CreateValueLabel();
+    private readonly Label visioProductLabel = CreateValueLabel();
+    private readonly Label architectureLabel = CreateValueLabel();
+    private readonly Label versionLabel = CreateValueLabel();
+    private readonly Label channelLabel = CreateValueLabel();
+
+    private readonly Label compatibilityTitle = new()
+    {
+        AutoSize = true,
+        Font = new Font("Segoe UI", 11, FontStyle.Bold)
+    };
+
+    private readonly Label compatibilityDetails = new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(570, 0)
+    };
+
+    private readonly Panel compatibilityPanel = new()
+    {
+        Width = 620,
+        AutoSize = true,
+        AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        Padding = new Padding(15)
+    };
 
     private readonly ComboBox architectureBox = new()
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
-        Width = 180
+        Width = 220,
+        Font = new Font("Segoe UI", 10)
     };
 
     private readonly Label architectureHint = new()
     {
         AutoSize = true,
         MaximumSize = new Size(590, 0),
-        ForeColor = Color.DimGray
-    };
-
-    private OfficeDetectionInfo? detectedOffice;
-    private bool officeExecutablesDetected;
-
-    private readonly Label status = new()
-    {
-        AutoSize = true,
-        Text = "Проверка установленных приложений Office..."
-    };
-
-    private readonly Button refresh = new()
-    {
-        Text = "Обновить список",
-        AutoSize = true
-    };
-
-    private readonly Button checkOdt = new()
-    {
-        Text = "Проверить ODT",
-        AutoSize = true
-    };
-
-    private readonly Button install = new()
-    {
-        Text = "Установить Office",
-        AutoSize = true
-    };
-
-    private readonly Button browse = new()
-    {
-        Text = "Выбрать setup.exe вручную",
-        AutoSize = true
+        ForeColor = TextSecondary
     };
 
     private readonly TextBox odtPath = new()
     {
         Width = 590,
-        ReadOnly = true
+        ReadOnly = true,
+        BackColor = Color.White
     };
+
+    private readonly Button refresh = CreateButton("Обновить список");
+    private readonly Button checkOdt = CreateButton("Проверить ODT");
+    private readonly Button install = CreateButton("Установить Office");
+    private readonly Button browse = CreateButton("Выбрать setup.exe");
 
     private readonly ProgressBar progress = new()
     {
         Width = 590,
-        Height = 22,
+        Height = 18,
         Style = ProgressBarStyle.Marquee,
         Visible = false
     };
 
+    private readonly Label status = new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(590, 0),
+        ForeColor = TextSecondary,
+        Text = "Проверка конфигурации Office..."
+    };
+
+    private OfficeDetectionInfo? detectedOffice;
+    private bool officeExecutablesDetected;
+
     public InstallerForm()
     {
         Text = "Office Installer — Office LTSC 2024";
-
-        ClientSize = new Size(680, 850);
-        MinimumSize = new Size(700, 700);
-
+        ClientSize = new Size(720, 850);
+        MinimumSize = new Size(740, 650);
         StartPosition = FormStartPosition.CenterScreen;
+        BackColor = Background;
         Font = new Font("Segoe UI", 10);
+
+        var scroll = new Panel
+        {
+            Dock = DockStyle.Fill,
+            AutoScroll = true
+        };
+
+        Controls.Add(scroll);
 
         var layout = new FlowLayoutPanel
         {
-            Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
-            AutoScroll = true,
-            Padding = new Padding(18)
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(24),
+            BackColor = Background
         };
 
-        Controls.Add(layout);
+        scroll.Controls.Add(layout);
 
         layout.Controls.Add(new Label
         {
-            Text = "Office LTSC 2024",
-            Font = new Font("Segoe UI", 17, FontStyle.Bold),
+            Text = "Office Installer",
+            Font = new Font("Segoe UI", 22, FontStyle.Bold),
+            ForeColor = TextPrimary,
             AutoSize = true
         });
 
         layout.Controls.Add(new Label
         {
-            Text = "Выберите приложения для установки.",
-            AutoSize = true
+            Text = "Microsoft Office LTSC 2024",
+            Font = new Font("Segoe UI", 11),
+            ForeColor = TextSecondary,
+            AutoSize = true,
+            Margin = new Padding(3, 0, 3, 15)
         });
 
-        layout.Controls.Add(new Label
-        {
-            Text = "Требуется действующая корпоративная лицензия.",
-            AutoSize = true
-        });
-
-        AddHeading(layout, "Установленные приложения");
+        var appsCard = CreateCard("Приложения Office");
 
         foreach (string app in Apps)
         {
             var row = new TableLayoutPanel
             {
-                Width = 610,
-                Height = 36,
+                Width = 590,
+                Height = 38,
                 ColumnCount = 2,
-                RowCount = 1,
-                Margin = new Padding(0, 2, 0, 2)
+                RowCount = 1
             };
 
-            row.ColumnStyles.Add(
-                new ColumnStyle(SizeType.Absolute, 190)
-            );
-
-            row.ColumnStyles.Add(
-                new ColumnStyle(SizeType.Percent, 100)
-            );
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
             var box = new CheckBox
             {
                 Text = app,
-                Checked = app is
-                    "Word" or
-                    "Excel" or
-                    "PowerPoint" or
-                    "Outlook",
+                Checked = app is "Word" or "Excel" or "PowerPoint" or "Outlook",
                 AutoSize = true,
+                ForeColor = TextPrimary,
                 Anchor = AnchorStyles.Left
             };
 
-            var appStatus = CreateInfoLabel();
-
+            var appStatus = CreateValueLabel();
             appStatus.Text = "Проверка...";
             appStatus.Anchor = AnchorStyles.Left;
 
@@ -199,38 +202,70 @@ public sealed class InstallerForm : Form
             row.Controls.Add(box, 0, 0);
             row.Controls.Add(appStatus, 1, 0);
 
-            layout.Controls.Add(row);
+            appsCard.Controls.Add(row);
         }
 
         refresh.Click += (_, _) => RefreshOfficeInformation();
+        appsCard.Controls.Add(refresh);
+        layout.Controls.Add(appsCard);
 
-        layout.Controls.Add(refresh);
+        var productsCard = CreateCard("Установленные продукты");
 
-        AddHeading(layout, "Информация об установленном Office");
+        AddInfoRow(productsCard, "Office", officeProductLabel);
+        AddInfoRow(productsCard, "Project", projectProductLabel);
+        AddInfoRow(productsCard, "Visio", visioProductLabel);
+        AddInfoRow(productsCard, "Архитектура", architectureLabel);
+        AddInfoRow(productsCard, "Версия", versionLabel);
+        AddInfoRow(productsCard, "Канал", channelLabel);
 
-        AddInfoRow(layout, "Редакция:", editionLabel);
-        AddInfoRow(layout, "Продукт:", productLabel);
-        AddInfoRow(layout, "Архитектура:", architectureLabel);
-        AddInfoRow(layout, "Версия:", versionLabel);
-        AddInfoRow(layout, "Канал:", channelLabel);
-        AddInfoRow(layout, "Совместимость:", compatibilityLabel);
+        layout.Controls.Add(productsCard);
 
-        AddHeading(layout, "Архитектура устанавливаемого Office");
+        var architectureCard = CreateCard("Архитектура установки");
 
-        architectureBox.Items.Add("x64 (64-битная)");
-        architectureBox.Items.Add("x86 (32-битная)");
+        architectureBox.Items.AddRange(new object[]
+        {
+            "x64 (64-битная)",
+            "x86 (32-битная)"
+        });
 
         architectureBox.SelectedIndex = 0;
-
         architectureBox.SelectedIndexChanged += (_, _) =>
             UpdateCompatibilityDisplay();
 
-        layout.Controls.Add(architectureBox);
-        layout.Controls.Add(architectureHint);
+        architectureCard.Controls.Add(architectureBox);
+        architectureCard.Controls.Add(architectureHint);
+        layout.Controls.Add(architectureCard);
 
-        AddHeading(layout, "Office Deployment Tool");
+        var compatibilityCard = CreateCard("Проверка совместимости");
 
-        layout.Controls.Add(odtPath);
+        compatibilityPanel.BackColor = Color.FromArgb(255, 240, 240);
+
+        var compatibilityContent = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink
+        };
+
+        compatibilityContent.Controls.Add(compatibilityTitle);
+        compatibilityContent.Controls.Add(compatibilityDetails);
+
+        compatibilityPanel.Controls.Add(compatibilityContent);
+        compatibilityCard.Controls.Add(compatibilityPanel);
+
+        layout.Controls.Add(compatibilityCard);
+
+        var odtCard = CreateCard("Office Deployment Tool");
+
+        odtCard.Controls.Add(new Label
+        {
+            Text = "Путь к setup.exe",
+            ForeColor = TextSecondary,
+            AutoSize = true
+        });
+
+        odtCard.Controls.Add(odtPath);
 
         browse.Click += (_, _) =>
         {
@@ -243,30 +278,40 @@ public sealed class InstallerForm : Form
             if (dialog.ShowDialog() == DialogResult.OK)
             {
                 odtPath.Text = dialog.FileName;
-
-                status.Text =
-                    "Выбран setup.exe. Перед использованием будет проверена подпись.";
+                status.Text = "Выбран setup.exe. Подпись будет проверена.";
             }
         };
 
-        layout.Controls.Add(browse);
+        odtCard.Controls.Add(browse);
 
         var buttonRow = new FlowLayoutPanel
         {
-            Width = 610,
+            Width = 590,
             Height = 48,
             WrapContents = false
         };
 
+        install.BackColor = Accent;
+        install.ForeColor = Color.White;
+        install.FlatStyle = FlatStyle.Flat;
+        install.FlatAppearance.BorderSize = 0;
+
         buttonRow.Controls.Add(checkOdt);
         buttonRow.Controls.Add(install);
 
-        layout.Controls.Add(buttonRow);
-        layout.Controls.Add(progress);
+        odtCard.Controls.Add(buttonRow);
+        odtCard.Controls.Add(progress);
+        odtCard.Controls.Add(status);
 
-        status.MaximumSize = new Size(590, 0);
+        layout.Controls.Add(odtCard);
 
-        layout.Controls.Add(status);
+        layout.Controls.Add(new Label
+        {
+            Text = "Для установки необходима действующая корпоративная лицензия.",
+            ForeColor = TextSecondary,
+            AutoSize = true,
+            Margin = new Padding(3, 8, 3, 10)
+        });
 
         checkOdt.Click += async (_, _) => await CheckOdtAsync();
         install.Click += async (_, _) => await InstallAsync();
@@ -274,66 +319,83 @@ public sealed class InstallerForm : Form
         Shown += (_, _) => RefreshOfficeInformation();
     }
 
-    private static Label CreateInfoLabel()
+    private static Button CreateButton(string text)
+    {
+        return new Button
+        {
+            Text = text,
+            AutoSize = true,
+            Height = 34,
+            Padding = new Padding(10, 3, 10, 3),
+            FlatStyle = FlatStyle.System
+        };
+    }
+
+    private static Label CreateValueLabel()
     {
         return new Label
         {
             Text = "Не определено",
             AutoSize = true,
-            MaximumSize = new Size(400, 0),
-            ForeColor = Color.DimGray
+            MaximumSize = new Size(390, 0),
+            ForeColor = TextSecondary
         };
     }
 
-    private void AddHeading(
-        FlowLayoutPanel layout,
-        string text
-    )
+    private static FlowLayoutPanel CreateCard(string title)
     {
-        layout.Controls.Add(new Label
+        var card = new FlowLayoutPanel
         {
-            Text = text,
-            Font = new Font(Font, FontStyle.Bold),
+            Width = 640,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
             AutoSize = true,
-            Margin = new Padding(3, 18, 3, 8)
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(15),
+            BackColor = Surface,
+            Margin = new Padding(0, 0, 0, 14)
+        };
+
+        card.Controls.Add(new Label
+        {
+            Text = title,
+            Font = new Font("Segoe UI", 12, FontStyle.Bold),
+            ForeColor = TextPrimary,
+            AutoSize = true,
+            Margin = new Padding(3, 0, 3, 12)
         });
+
+        return card;
     }
 
     private static void AddInfoRow(
-        FlowLayoutPanel layout,
+        FlowLayoutPanel parent,
         string title,
-        Label value
-    )
+        Label value)
     {
         var row = new TableLayoutPanel
         {
-            Width = 610,
-            Height = 35,
+            Width = 590,
+            Height = 38,
             ColumnCount = 2,
-            RowCount = 1,
-            Margin = new Padding(0, 2, 0, 2)
+            RowCount = 1
         };
 
-        row.ColumnStyles.Add(
-            new ColumnStyle(SizeType.Absolute, 190)
-        );
-
-        row.ColumnStyles.Add(
-            new ColumnStyle(SizeType.Percent, 100)
-        );
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         row.Controls.Add(new Label
         {
             Text = title,
             AutoSize = true,
+            ForeColor = TextPrimary,
             Anchor = AnchorStyles.Left
         }, 0, 0);
 
         value.Anchor = AnchorStyles.Left;
-
         row.Controls.Add(value, 1, 0);
 
-        layout.Controls.Add(row);
+        parent.Controls.Add(row);
     }
 
     private void RefreshOfficeInformation()
@@ -343,8 +405,7 @@ public sealed class InstallerForm : Form
         SelectRecommendedArchitecture();
         UpdateCompatibilityDisplay();
 
-        status.Text =
-            "Проверка приложений и конфигурации Office завершена.";
+        status.Text = "Проверка конфигурации Office завершена.";
     }
 
     private void RefreshInstalledApps()
@@ -354,7 +415,6 @@ public sealed class InstallerForm : Form
         foreach (string app in Apps)
         {
             string? path = FindOfficeExecutable(Executables[app]);
-
             Label label = appStatuses[app];
 
             if (path != null)
@@ -363,16 +423,16 @@ public sealed class InstallerForm : Form
 
                 string? version = GetExecutableVersion(path);
 
-                label.Text = version != null
-                    ? $"Установлен — версия {version}"
-                    : "Установлен";
+                label.Text = version == null
+                    ? "Установлен"
+                    : $"Установлен · {version}";
 
-                label.ForeColor = Color.DarkGreen;
+                label.ForeColor = Success;
             }
             else
             {
                 label.Text = "Не найден";
-                label.ForeColor = Color.DarkRed;
+                label.ForeColor = Danger;
             }
         }
     }
@@ -383,52 +443,110 @@ public sealed class InstallerForm : Form
 
         if (!detectedOffice.ClickToRunDetected)
         {
-            editionLabel.Text = "Click-to-Run не обнаружен";
-            productLabel.Text = "Не определён";
+            officeProductLabel.Text = "Не определён";
+            projectProductLabel.Text = "Не определён";
+            visioProductLabel.Text = "Не определён";
             architectureLabel.Text = "Не определена";
             versionLabel.Text = "Не определена";
             channelLabel.Text = "Не определён";
-
             return;
         }
 
-        editionLabel.Text = detectedOffice.Edition;
-        productLabel.Text = detectedOffice.ProductIds;
+        string[] ids = GetProductIds();
+
+        officeProductLabel.Text = DescribeProduct(
+            ids, "ProPlus2024Volume", "Office LTSC Professional Plus 2024",
+            "ProPlus2021Volume", "Office LTSC Professional Plus 2021",
+            "Standard2024Volume", "Office LTSC Standard 2024",
+            "Standard2021Volume", "Office LTSC Standard 2021"
+        );
+
+        projectProductLabel.Text = DescribeProduct(
+            ids, "ProjectPro2024Volume", "Project Professional 2024",
+            "ProjectPro2021Volume", "Project Professional 2021",
+            "ProjectStd2024Volume", "Project Standard 2024",
+            "ProjectStd2021Volume", "Project Standard 2021"
+        );
+
+        visioProductLabel.Text = DescribeProduct(
+            ids, "VisioPro2024Volume", "Visio Professional 2024",
+            "VisioPro2021Volume", "Visio Professional 2021",
+            "VisioStd2024Volume", "Visio Standard 2024",
+            "VisioStd2021Volume", "Visio Standard 2021"
+        );
+
         architectureLabel.Text = detectedOffice.Architecture;
         versionLabel.Text = detectedOffice.Version;
-        channelLabel.Text = detectedOffice.Channel;
+        channelLabel.Text = DescribeChannel(detectedOffice.Channel);
+    }
+
+    private string[] GetProductIds()
+    {
+        return (detectedOffice?.ProductIds ?? "").Split(
+            new[] { ',', ';' },
+            StringSplitOptions.RemoveEmptyEntries |
+            StringSplitOptions.TrimEntries
+        );
+    }
+
+    private static string DescribeProduct(
+        string[] ids,
+        params string[] mappings)
+    {
+        for (int i = 0; i + 1 < mappings.Length; i += 2)
+        {
+            if (ids.Any(id => id.Equals(
+                mappings[i],
+                StringComparison.OrdinalIgnoreCase)))
+            {
+                return mappings[i + 1];
+            }
+        }
+
+        return "Не обнаружен в Click-to-Run";
+    }
+
+    private static string DescribeChannel(string value)
+    {
+        if (value.Contains(
+            "5030841d-c919-4594-8d2d-84ae4f96e58e",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "Office LTSC 2021 (PerpetualVL2021)";
+        }
+
+        if (value.Contains(
+            "7983bac0-e531-40cf-be00-fd24fe66619c",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "Office LTSC 2024 (PerpetualVL2024)";
+        }
+
+        return value == "Не определено"
+            ? "Не определён"
+            : "Другой канал Click-to-Run";
     }
 
     private void SelectRecommendedArchitecture()
     {
         string architecture = detectedOffice?.Architecture ?? "";
 
-        if (architecture.Equals(
-            "x86",
-            StringComparison.OrdinalIgnoreCase))
+        if (architecture.Equals("x86", StringComparison.OrdinalIgnoreCase))
         {
             architectureBox.SelectedIndex = 1;
-
-            architectureHint.Text =
-                "Автоматически выбрана x86: обнаружен 32-битный Office.";
+            architectureHint.Text = "Автоматически выбрана x86.";
         }
-        else if (architecture.Equals(
-            "x64",
-            StringComparison.OrdinalIgnoreCase))
+        else if (architecture.Equals("x64", StringComparison.OrdinalIgnoreCase))
         {
             architectureBox.SelectedIndex = 0;
-
-            architectureHint.Text =
-                "Автоматически выбрана x64: обнаружен 64-битный Office.";
+            architectureHint.Text = "Автоматически выбрана x64.";
         }
         else
         {
             architectureBox.SelectedIndex = 0;
-
             architectureHint.Text =
-                "По умолчанию выбрана x64. " +
-                "Если Office уже установлен, но его архитектура " +
-                "не определена, установка будет заблокирована.";
+                "По умолчанию выбрана x64. При неизвестной конфигурации Office " +
+                "установка может быть заблокирована.";
         }
     }
 
@@ -438,72 +556,45 @@ public sealed class InstallerForm : Form
     private string? GetInstallationBlockReason()
     {
         if (detectedOffice == null)
-        {
             return "Не удалось проверить установленный Office.";
-        }
 
         string existingArchitecture = detectedOffice.Architecture;
 
         bool knownArchitecture =
-            existingArchitecture.Equals(
-                "x86",
-                StringComparison.OrdinalIgnoreCase
-            ) ||
-            existingArchitecture.Equals(
-                "x64",
-                StringComparison.OrdinalIgnoreCase
-            );
+            existingArchitecture.Equals("x86", StringComparison.OrdinalIgnoreCase) ||
+            existingArchitecture.Equals("x64", StringComparison.OrdinalIgnoreCase);
 
         if (detectedOffice.ClickToRunDetected && !knownArchitecture)
         {
-            return
-                "Обнаружена установка Office Click-to-Run, " +
-                "но её архитектура не определена.";
+            return "Обнаружен Office Click-to-Run, но его архитектура неизвестна.";
         }
 
         if (knownArchitecture &&
             !existingArchitecture.Equals(
                 SelectedArchitecture,
-                StringComparison.OrdinalIgnoreCase
-            ))
+                StringComparison.OrdinalIgnoreCase))
         {
-            return
-                $"Установлен Office {existingArchitecture}, " +
-                $"а для установки выбран {SelectedArchitecture}. " +
-                "Архитектуры должны совпадать.";
+            return $"Установлен Office {existingArchitecture}, " +
+                   $"а выбран {SelectedArchitecture}. Архитектуры не совпадают.";
         }
 
         if (!detectedOffice.ClickToRunDetected)
         {
-            if (officeExecutablesDetected)
-            {
-                return
-                    "Обнаружены исполняемые файлы Office, " +
-                    "но конфигурация Click-to-Run не определена. " +
-                    "Требуется ручная проверка.";
-            }
-
-            return null;
+            return officeExecutablesDetected
+                ? "Обнаружены приложения Office, но конфигурация Click-to-Run неизвестна."
+                : null;
         }
 
-        string[] productIds = detectedOffice.ProductIds.Split(
-            new[] { ',', ';' },
-            StringSplitOptions.RemoveEmptyEntries |
-            StringSplitOptions.TrimEntries
-        );
+        string[] ids = GetProductIds();
 
-        if (productIds.Length == 0 ||
-            productIds.Any(id =>
-                !id.Equals(
-                    "ProPlus2024Volume",
-                    StringComparison.OrdinalIgnoreCase
-                )))
+        if (ids.Length == 0 ||
+            ids.Any(id => !id.Equals(
+                "ProPlus2024Volume",
+                StringComparison.OrdinalIgnoreCase)))
         {
-            return
-                "Обнаружены продукты Office, отличные от " +
-                "ProPlus2024Volume. Для установки LTSC 2024 " +
-                "требуется отдельная проверка совместимости " +
-                "Office, Project и Visio.";
+            return "Обнаружены другие продукты Office, Project или Visio. " +
+                   "Для установки LTSC 2024 необходима дополнительная " +
+                   "проверка совместимости.";
         }
 
         return null;
@@ -513,72 +604,53 @@ public sealed class InstallerForm : Form
     {
         string? reason = GetInstallationBlockReason();
 
-        if (reason != null)
+        if (reason == null)
         {
-            compatibilityLabel.Text = "Установка заблокирована";
-            compatibilityLabel.ForeColor = Color.DarkRed;
-
-            compatibilityLabel.AccessibleDescription = reason;
+            compatibilityPanel.BackColor = Color.FromArgb(231, 248, 239);
+            compatibilityTitle.Text = "Предварительная проверка пройдена";
+            compatibilityTitle.ForeColor = Success;
+            compatibilityDetails.Text =
+                "Конфликтов по текущим проверкам не обнаружено.";
+            compatibilityDetails.ForeColor = Success;
         }
         else
         {
-            compatibilityLabel.Text =
-                "Предварительная проверка пройдена";
-
-            compatibilityLabel.ForeColor = Color.DarkGreen;
-            compatibilityLabel.AccessibleDescription = "";
+            compatibilityPanel.BackColor = Color.FromArgb(255, 240, 240);
+            compatibilityTitle.Text = "Установка заблокирована";
+            compatibilityTitle.ForeColor = Danger;
+            compatibilityDetails.Text = reason;
+            compatibilityDetails.ForeColor = Danger;
         }
     }
 
     private static string? FindOfficeExecutable(string executableName)
     {
-        var roots = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase
-        );
+        var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (string variable in new[]
         {
-            "ProgramFiles",
-            "ProgramFiles(x86)",
-            "ProgramW6432"
+            "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"
         })
         {
             string? root = Environment.GetEnvironmentVariable(variable);
 
             if (!string.IsNullOrWhiteSpace(root))
-            {
                 roots.Add(root);
-            }
         }
 
         foreach (string root in roots)
         {
             foreach (string relativePath in new[]
             {
-                Path.Combine(
-                    "Microsoft Office",
-                    "root",
-                    "Office16",
-                    executableName
-                ),
-                Path.Combine(
-                    "Microsoft Office",
-                    "Office16",
-                    executableName
-                ),
-                Path.Combine(
-                    "Microsoft Office",
-                    "Office15",
-                    executableName
-                )
+                Path.Combine("Microsoft Office", "root", "Office16", executableName),
+                Path.Combine("Microsoft Office", "Office16", executableName),
+                Path.Combine("Microsoft Office", "Office15", executableName)
             })
             {
                 string candidate = Path.Combine(root, relativePath);
 
                 if (File.Exists(candidate))
-                {
                     return candidate;
-                }
             }
         }
 
@@ -610,9 +682,7 @@ public sealed class InstallerForm : Form
         architectureBox.Enabled = !busy;
 
         foreach (CheckBox box in boxes.Values)
-        {
             box.Enabled = !busy;
-        }
 
         progress.Visible = busy;
     }
@@ -624,15 +694,13 @@ public sealed class InstallerForm : Form
         try
         {
             string setupPath = await PrepareOdtAsync();
-
             odtPath.Text = setupPath;
 
-            status.Text =
-                "ODT готов. Проверка завершена. Office не устанавливался.";
+            status.Text = "ODT готов. Office не устанавливался.";
 
             MessageBox.Show(
                 "Office Deployment Tool успешно подготовлен.\n\n" +
-                "Файл setup.exe найден и прошёл проверку цифровой подписи Microsoft.\n\n" +
+                "Файл setup.exe прошёл проверку цифровой подписи Microsoft.\n\n" +
                 "Установка Office НЕ запускалась.",
                 "Проверка ODT завершена",
                 MessageBoxButtons.OK,
@@ -666,11 +734,9 @@ public sealed class InstallerForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning
             );
-
             return;
         }
 
-        // Повторно проверяем Office перед установкой.
         RefreshInstalledApps();
         RefreshOfficeEdition();
         UpdateCompatibilityDisplay();
@@ -684,8 +750,7 @@ public sealed class InstallerForm : Form
                 blockReason + "\n\n" +
                 $"Редакция: {detectedOffice?.Edition}\n" +
                 $"Продукты: {detectedOffice?.ProductIds}\n" +
-                $"Установленная архитектура: " +
-                $"{detectedOffice?.Architecture}\n" +
+                $"Установленная архитектура: {detectedOffice?.Architecture}\n" +
                 $"Выбранная архитектура: {SelectedArchitecture}\n\n" +
                 "Office Deployment Tool не будет запущен.",
                 "Проверка совместимости Office",
@@ -693,8 +758,7 @@ public sealed class InstallerForm : Form
                 MessageBoxIcon.Error
             );
 
-            status.Text = "Установка заблокирована: " + blockReason;
-
+            status.Text = "Установка заблокирована.";
             return;
         }
 
@@ -706,13 +770,11 @@ public sealed class InstallerForm : Form
         if (!isAdministrator)
         {
             MessageBox.Show(
-                "Для установки Office запустите программу " +
-                "от имени администратора.",
+                "Запустите программу от имени администратора.",
                 "Требуются права администратора",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning
             );
-
             return;
         }
 
@@ -722,38 +784,31 @@ public sealed class InstallerForm : Form
         );
 
         var confirmation = MessageBox.Show(
-            "Будут установлены выбранные приложения:\n\n" +
-            selectedApps +
-            $"\n\nАрхитектура: {SelectedArchitecture}\n" +
+            $"Приложения: {selectedApps}\n" +
+            $"Архитектура: {SelectedArchitecture}\n" +
             "Редакция: Office LTSC Professional Plus 2024\n\n" +
-            "Office Deployment Tool может изменить " +
-            "существующую установку Microsoft Office.\n\n" +
-            "Продолжить?",
+            "Office Deployment Tool может изменить существующую " +
+            "установку Microsoft Office.\n\nПродолжить?",
             "Подтверждение установки",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Warning
         );
 
         if (confirmation != DialogResult.Yes)
-        {
             return;
-        }
 
         SetBusy(true);
 
         try
         {
             string setupPath = await PrepareOdtAsync();
-
             odtPath.Text = setupPath;
 
-            status.Text =
-                "Создание конфигурации Office LTSC 2024...";
+            status.Text = "Создание конфигурации Office LTSC 2024...";
 
             string configurationPath = CreateConfiguration();
 
-            status.Text =
-                "Установка Office. Дождитесь завершения...";
+            status.Text = "Установка Office. Дождитесь завершения...";
 
             using var process = Process.Start(new ProcessStartInfo
             {
@@ -770,19 +825,15 @@ public sealed class InstallerForm : Form
             if (process.ExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    $"Office Deployment Tool завершился с кодом " +
-                    $"{process.ExitCode}."
+                    $"Office Deployment Tool завершился с кодом {process.ExitCode}."
                 );
             }
 
             RefreshOfficeInformation();
-
-            status.Text =
-                "ODT завершил работу. Проверьте установленные приложения.";
+            status.Text = "ODT завершил работу. Проверьте приложения Office.";
 
             MessageBox.Show(
                 "Office Deployment Tool завершил работу.\n\n" +
-                "Список установленных приложений обновлён.\n" +
                 "Проверьте установку и лицензирование Office.",
                 "Установка завершена",
                 MessageBoxButtons.OK,
@@ -811,33 +862,27 @@ public sealed class InstallerForm : Form
         if (File.Exists(odtPath.Text))
         {
             status.Text = "Проверка выбранного setup.exe...";
-
             await VerifyAuthenticodeAsync(odtPath.Text);
-
             return odtPath.Text;
         }
 
         Directory.CreateDirectory(OdtFolder);
 
         string installerPath = Path.Combine(
-            OdtFolder,
-            "OfficeDeploymentTool.exe"
+            OdtFolder, "OfficeDeploymentTool.exe"
         );
 
         string setupPath = Path.Combine(
-            OdtFolder,
-            "setup.exe"
+            OdtFolder, "setup.exe"
         );
 
         if (File.Exists(setupPath))
         {
-            status.Text =
-                "Проверка ранее распакованного setup.exe...";
+            status.Text = "Проверка ранее распакованного setup.exe...";
 
             try
             {
                 await VerifyAuthenticodeAsync(setupPath);
-
                 return setupPath;
             }
             catch
@@ -887,13 +932,11 @@ public sealed class InstallerForm : Form
             File.Delete(installerPath);
 
             throw new InvalidOperationException(
-                "SHA-256 скачанного ODT не совпадает " +
-                "с проверенным значением."
+                "SHA-256 скачанного ODT не совпадает с проверенным значением."
             );
         }
 
         status.Text = "Проверка цифровой подписи ODT...";
-
         await VerifyAuthenticodeAsync(installerPath);
 
         status.Text = "Распаковка Office Deployment Tool...";
@@ -926,17 +969,13 @@ public sealed class InstallerForm : Form
             );
         }
 
-        status.Text =
-            "Проверка подписи распакованного setup.exe...";
-
+        status.Text = "Проверка подписи распакованного setup.exe...";
         await VerifyAuthenticodeAsync(setupPath);
 
         return setupPath;
     }
 
-    private static async Task VerifyAuthenticodeAsync(
-        string filePath
-    )
+    private static async Task VerifyAuthenticodeAsync(string filePath)
     {
         string escapedPath = filePath.Replace("'", "''");
 
@@ -1012,14 +1051,8 @@ public sealed class InstallerForm : Form
                 "Configuration",
                 new XElement(
                     "Add",
-                    new XAttribute(
-                        "OfficeClientEdition",
-                        edition
-                    ),
-                    new XAttribute(
-                        "Channel",
-                        "PerpetualVL2024"
-                    ),
+                    new XAttribute("OfficeClientEdition", edition),
+                    new XAttribute("Channel", "PerpetualVL2024"),
                     product
                 ),
                 new XElement(
