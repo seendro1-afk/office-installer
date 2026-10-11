@@ -1732,9 +1732,9 @@ public sealed class InstallerForm : Form
                 StartPosition =
                     FormStartPosition.CenterParent,
 
-                Size = new Size(760, 650),
+                Size = new Size(850, 680),
 
-                MinimumSize = new Size(560, 450),
+                MinimumSize = new Size(650, 480),
 
                 Font = new Font("Segoe UI", 10)
             };
@@ -1763,7 +1763,7 @@ public sealed class InstallerForm : Form
             {
                 AutoSize = true,
 
-                MaximumSize = new Size(700, 0),
+                MaximumSize = new Size(780, 0),
 
                 Text =
                     $"Версия: Office LTSC {SelectedOfficeYear}\n" +
@@ -1783,17 +1783,169 @@ public sealed class InstallerForm : Form
                 Text = xml
             };
 
+            var buttons = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true
+            };
+
+            var copyButton = new Button
+            {
+                Text = "Скопировать XML",
+                AutoSize = true
+            };
+
+            var saveButton = new Button
+            {
+                Text = "Сохранить XML",
+                AutoSize = true
+            };
+
+            var validateButton = new Button
+            {
+                Text = "Проверить XML",
+                AutoSize = true
+            };
+
             var closeButton = new Button
             {
                 Text = "Закрыть",
                 AutoSize = true,
-                Anchor = AnchorStyles.Right,
                 DialogResult = DialogResult.OK
             };
 
+            copyButton.Click += (_, _) =>
+            {
+                try
+                {
+                    Clipboard.SetText(xmlBox.Text);
+
+                    InstallerLogger.Write(
+                        "XML-конфигурация скопирована.");
+
+                    MessageBox.Show(
+                        previewForm,
+                        "XML скопирован в буфер обмена.",
+                        "Готово",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+                }
+                catch (Exception ex)
+                {
+                    InstallerLogger.Error("CopyXml", ex);
+
+                    MessageBox.Show(
+                        previewForm,
+                        ex.Message,
+                        "Ошибка копирования",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                }
+            };
+
+            saveButton.Click += (_, _) =>
+            {
+                try
+                {
+                    using var dialog = new SaveFileDialog
+                    {
+                        Title = "Сохранить конфигурацию Office",
+                        Filter = "XML-файлы (*.xml)|*.xml",
+                        FileName = "configuration.xml",
+                        DefaultExt = "xml",
+                        AddExtension = true,
+                        OverwritePrompt = true
+                    };
+
+                    if (dialog.ShowDialog(previewForm)
+                        != DialogResult.OK)
+                    {
+                        return;
+                    }
+
+                    File.WriteAllText(
+                        dialog.FileName,
+                        xmlBox.Text,
+                        new System.Text.UTF8Encoding(false)
+                    );
+
+                    InstallerLogger.Write(
+                        "XML-конфигурация сохранена: " +
+                        dialog.FileName);
+
+                    MessageBox.Show(
+                        previewForm,
+                        "Конфигурация успешно сохранена.",
+                        "Готово",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+                }
+                catch (Exception ex)
+                {
+                    InstallerLogger.Error("SaveXml", ex);
+
+                    MessageBox.Show(
+                        previewForm,
+                        ex.Message,
+                        "Ошибка сохранения",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                }
+            };
+
+            validateButton.Click += (_, _) =>
+            {
+                try
+                {
+                    ValidateConfigurationXml(xmlBox.Text);
+
+                    InstallerLogger.Write(
+                        "Проверка XML-конфигурации пройдена.");
+
+                    MessageBox.Show(
+                        previewForm,
+                        "XML корректен.\n\n" +
+                        "Версия Office, архитектура, " +
+                        "канал и приложения соответствуют " +
+                        "выбранным параметрам.\n\n" +
+                        "Проверка не гарантирует успешную " +
+                        "установку или активацию Office.",
+                        "Проверка завершена",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+                }
+                catch (Exception ex)
+                {
+                    InstallerLogger.Error(
+                        "ValidateConfigurationXml",
+                        ex
+                    );
+
+                    MessageBox.Show(
+                        previewForm,
+                        ex.Message,
+                        "Ошибка проверки XML",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                }
+            };
+
+            buttons.Controls.Add(copyButton);
+            buttons.Controls.Add(saveButton);
+            buttons.Controls.Add(validateButton);
+            buttons.Controls.Add(closeButton);
+
             layout.Controls.Add(summary, 0, 0);
             layout.Controls.Add(xmlBox, 0, 1);
-            layout.Controls.Add(closeButton, 0, 2);
+            layout.Controls.Add(buttons, 0, 2);
 
             previewForm.Controls.Add(layout);
             previewForm.AcceptButton = closeButton;
@@ -1813,6 +1965,107 @@ public sealed class InstallerForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error
             );
+        }
+    }
+
+    private void ValidateConfigurationXml(string xml)
+    {
+        var document = XDocument.Parse(xml);
+
+        XElement root = document.Root
+            ?? throw new InvalidOperationException(
+                "Отсутствует корневой элемент XML."
+            );
+
+        if (root.Name != "Configuration")
+        {
+            throw new InvalidOperationException(
+                "Корневой элемент должен называться Configuration."
+            );
+        }
+
+        XElement add = root.Element("Add")
+            ?? throw new InvalidOperationException(
+                "Отсутствует элемент Add."
+            );
+
+        string expectedEdition =
+            SelectedArchitecture == "x86" ? "32" : "64";
+
+        string? actualEdition =
+            (string?)add.Attribute("OfficeClientEdition");
+
+        if (actualEdition != expectedEdition)
+        {
+            throw new InvalidOperationException(
+                "Архитектура XML не соответствует выбранной."
+            );
+        }
+
+        string? actualChannel =
+            (string?)add.Attribute("Channel");
+
+        if (actualChannel != SelectedChannel)
+        {
+            throw new InvalidOperationException(
+                "Канал Office не соответствует выбранной версии."
+            );
+        }
+
+        XElement product = add.Element("Product")
+            ?? throw new InvalidOperationException(
+                "Отсутствует элемент Product."
+            );
+
+        string? actualProduct =
+            (string?)product.Attribute("ID");
+
+        if (actualProduct != SelectedProductId)
+        {
+            throw new InvalidOperationException(
+                "Product ID не соответствует выбранной версии Office."
+            );
+        }
+
+        XElement language = product.Element("Language")
+            ?? throw new InvalidOperationException(
+                "Отсутствует элемент Language."
+            );
+
+        if ((string?)language.Attribute("ID") != "ru-ru")
+        {
+            throw new InvalidOperationException(
+                "Язык Office должен быть ru-ru."
+            );
+        }
+
+        var excludedApps = product
+            .Elements("ExcludeApp")
+            .Select(element =>
+                (string?)element.Attribute("ID"))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string app in Apps)
+        {
+            bool shouldBeExcluded = !boxes[app].Checked;
+            bool isExcluded = excludedApps.Contains(app);
+
+            if (shouldBeExcluded != isExcluded)
+            {
+                throw new InvalidOperationException(
+                    $"Параметры приложения {app} не совпадают."
+                );
+            }
+        }
+
+        foreach (string app in new[] { "Lync", "Groove" })
+        {
+            if (!excludedApps.Contains(app))
+            {
+                throw new InvalidOperationException(
+                    $"Отсутствует исключение {app}."
+                );
+            }
         }
     }
 
