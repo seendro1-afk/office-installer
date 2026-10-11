@@ -1214,7 +1214,7 @@ public sealed class InstallerForm : Form
         string description)
     {
         string message =
-            $"Этап {stage}/4 — {description}";
+            $"Этап {stage}/5 — {description}";
 
         status.Text = message;
         InstallerLogger.Write(message);
@@ -1411,8 +1411,49 @@ public sealed class InstallerForm : Form
                 $"Приложения={selectedApps}; " +
                 $"Конфигурация={configurationPath}.");
 
+            CheckDownloadDiskSpace();
+
             SetInstallationStage(
                 3,
+                $"Загрузка Office LTSC {SelectedOfficeYear}");
+
+            InstallerLogger.Write(
+                "Начало загрузки дистрибутива Office.");
+
+            using (var downloadProcess =
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = setupPath,
+
+                    Arguments =
+                        $"/download \"{configurationPath}\"",
+
+                    UseShellExecute = false,
+
+                    WorkingDirectory =
+                        Path.GetDirectoryName(setupPath)!
+                })
+                ?? throw new InvalidOperationException(
+                    "Не удалось запустить загрузку Office."
+                ))
+            {
+                await downloadProcess.WaitForExitAsync();
+
+                InstallerLogger.Write(
+                    "Загрузка Office завершилась. Код: " +
+                    downloadProcess.ExitCode);
+
+                if (downloadProcess.ExitCode != 0)
+                {
+                    throw new InvalidOperationException(
+                        "Не удалось загрузить файлы Office. " +
+                        $"Код ODT: {downloadProcess.ExitCode}."
+                    );
+                }
+            }
+
+            SetInstallationStage(
+                4,
                 $"Установка Office LTSC {SelectedOfficeYear}");
 
             using var process =
@@ -1447,7 +1488,7 @@ public sealed class InstallerForm : Form
             }
 
             SetInstallationStage(
-                4,
+                5,
                 "Проверка установленного Office");
 
             RefreshOfficeInformation();
@@ -2125,6 +2166,52 @@ public sealed class InstallerForm : Form
         }
     }
 
+    private void CheckDownloadDiskSpace()
+    {
+        string folder = GetOfficeDownloadFolder();
+
+        string root = Path.GetPathRoot(folder)
+            ?? throw new InvalidOperationException(
+                "Не удалось определить диск загрузки Office."
+            );
+
+        var drive = new DriveInfo(root);
+
+        const long requiredBytes = 10L * 1024 * 1024 * 1024;
+
+        long availableBytes = drive.AvailableFreeSpace;
+
+        InstallerLogger.Write(
+            $"Свободное место на {root}: " +
+            $"{availableBytes / (1024 * 1024 * 1024)} ГБ.");
+
+        if (availableBytes < requiredBytes)
+        {
+            throw new InvalidOperationException(
+                "Недостаточно свободного места для загрузки Office.\\n\\n" +
+                $"Диск: {root}\\n" +
+                $"Доступно: {availableBytes / (1024 * 1024 * 1024)} ГБ\\n" +
+                "Рекомендуется освободить минимум 10 ГБ."
+            );
+        }
+    }
+
+    private string GetOfficeDownloadFolder()
+    {
+        string programData =
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.CommonApplicationData
+            );
+
+        return Path.Combine(
+            programData,
+            "OfficeInstaller",
+            "Downloads",
+            $"Office{SelectedOfficeYear}",
+            SelectedArchitecture
+        );
+    }
+
     private string CreateConfiguration()
     {
         var product = new XElement(
@@ -2173,6 +2260,9 @@ public sealed class InstallerForm : Form
                 ? 32
                 : 64;
 
+        string downloadFolder =
+            GetOfficeDownloadFolder();
+
         var configuration = new XDocument(
             new XElement(
                 "Configuration",
@@ -2188,6 +2278,11 @@ public sealed class InstallerForm : Form
                     new XAttribute(
                         "Channel",
                         SelectedChannel
+                    ),
+
+                    new XAttribute(
+                        "SourcePath",
+                        downloadFolder
                     ),
 
                     product
