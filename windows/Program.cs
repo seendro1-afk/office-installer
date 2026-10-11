@@ -375,7 +375,10 @@ public sealed class InstallerForm : Form
         architectureBox.SelectedIndex = 0;
 
         architectureBox.SelectedIndexChanged += (_, _) =>
+        {
+            UpdateArchitectureHint();
             UpdateCompatibilityDisplay();
+        };
 
         architectureCard.Controls.Add(architectureBox);
 
@@ -930,6 +933,43 @@ public sealed class InstallerForm : Form
                 "По умолчанию выбрана x64. " +
                 "При неизвестной конфигурации Office " +
                 "установка может быть заблокирована.";
+        }
+
+        UpdateArchitectureHint();
+    }
+
+    private void UpdateArchitectureHint()
+    {
+        string installedArchitecture =
+            detectedOffice?.Architecture ?? "";
+
+        string selectedArchitecture = SelectedArchitecture;
+
+        if (!installedArchitecture.Equals("x86",
+                StringComparison.OrdinalIgnoreCase) &&
+            !installedArchitecture.Equals("x64",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            architectureHint.Text =
+                "Выбрана " + selectedArchitecture +
+                ". Архитектура установленного Office не определена.";
+            return;
+        }
+
+        if (installedArchitecture.Equals(
+            selectedArchitecture,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            architectureHint.Text =
+                "Обнаружен Office " + installedArchitecture +
+                ". Архитектура совпадает.";
+        }
+        else
+        {
+            architectureHint.Text =
+                "Обнаружен Office " + installedArchitecture +
+                ". Выбрана " + selectedArchitecture +
+                " — конфликт архитектур.";
         }
     }
 
