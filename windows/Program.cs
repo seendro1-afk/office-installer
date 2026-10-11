@@ -187,6 +187,9 @@ public sealed class InstallerForm : Form
     private readonly Button previewButton =
         CreateButton("Предпросмотр XML");
 
+    private readonly Button replacementTestButton =
+        CreateButton("Проверить готовность к замене");
+
     private readonly ProgressBar progress = new()
     {
         Width = ContentWidth,
@@ -434,8 +437,8 @@ public sealed class InstallerForm : Form
         installationModeCard.Controls.Add(new Label
         {
             Text =
-                "Режим замены пока находится в разработке. " +
-                "Удаление существующего Office отключено.",
+                "Перед реальной заменой рекомендуется выполнить " +
+                "безопасную проверку готовности.",
             AutoSize = true,
             ForeColor = TextSecondary,
             MaximumSize = new Size(500, 0)
@@ -514,6 +517,14 @@ public sealed class InstallerForm : Form
         };
 
         installationModeCard.Controls.Add(replacementPlanButton);
+
+        replacementTestButton.Width = 260;
+        replacementTestButton.Height = 38;
+
+        replacementTestButton.Click += async (_, _) =>
+            await TestOfficeReplacementAsync();
+
+        installationModeCard.Controls.Add(replacementTestButton);
 
         layout.Controls.Add(installationModeCard);
 
@@ -1851,6 +1862,7 @@ public sealed class InstallerForm : Form
         architectureBox.Enabled = !busy;
         officeVersionBox.Enabled = !busy;
         replacementModeBox.Enabled = !busy;
+        replacementTestButton.Enabled = !busy;
         projectBox.Enabled = !busy;
         visioBox.Enabled = !busy;
 
@@ -1904,6 +1916,154 @@ public sealed class InstallerForm : Form
             MessageBox.Show(
                 ex.Message,
                 "Ошибка проверки ODT",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error
+            );
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private async Task TestOfficeReplacementAsync()
+    {
+        if (isBusy)
+        {
+            return;
+        }
+
+        RefreshInstalledApps();
+        RefreshOfficeEdition();
+
+        try
+        {
+            ValidateReplacementMode();
+
+            string removalXml = CreateRemovalConfiguration();
+
+            ValidateRemovalConfiguration(removalXml);
+
+            string? blockReason = GetInstallationBlockReason();
+
+            if (blockReason != null)
+            {
+                throw new InvalidOperationException(blockReason);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                ex.Message,
+                "Проверка готовности заблокирована",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning
+            );
+
+            return;
+        }
+
+        using var identity = WindowsIdentity.GetCurrent();
+
+        bool isAdministrator =
+            new WindowsPrincipal(identity).IsInRole(
+                WindowsBuiltInRole.Administrator
+            );
+
+        if (!isAdministrator)
+        {
+            MessageBox.Show(
+                this,
+                "Запустите программу от имени администратора.",
+                "Требуются права администратора",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning
+            );
+
+            return;
+        }
+
+        SetBusy(true);
+
+        try
+        {
+            status.Text = "Подготовка тестовой загрузки Office 2024.";
+
+            string setupPath = await PrepareOdtAsync();
+
+            string configurationPath = CreateConfiguration();
+
+            CheckDownloadDiskSpace();
+
+            status.Text = "Загрузка Office 2024 для проверки.";
+
+            using (var process = Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = setupPath,
+                    Arguments =
+                        $"/download \"{configurationPath}\"",
+                    UseShellExecute = false,
+                    WorkingDirectory =
+                        Path.GetDirectoryName(setupPath)!
+                }) ?? throw new InvalidOperationException(
+                    "Не удалось запустить загрузку Office."
+                ))
+            {
+                await process.WaitForExitAsync();
+
+                if (process.ExitCode != 0)
+                {
+                    throw new InvalidOperationException(
+                        "Ошибка загрузки Office. Код ODT: " +
+                        process.ExitCode
+                    );
+                }
+            }
+
+            ValidateDownloadedOfficeFiles();
+
+            RefreshOfficeEdition();
+            ValidateReplacementMode();
+
+            string removalXml = CreateRemovalConfiguration();
+
+            ValidateRemovalConfiguration(removalXml);
+
+            status.Text = "Проверка готовности завершена.";
+
+            InstallerLogger.Write(
+                "Тестовая загрузка завершена. " +
+                "Удаление и установка Office не запускались."
+            );
+
+            MessageBox.Show(
+                this,
+                "Проверка готовности завершена.\\n\\n" +
+                "Дистрибутив Office 2024 загружен.\\n" +
+                "Конфигурация удаления проверена.\\n\\n" +
+                "Установленный Office 2021 не изменён.\\n" +
+                "Команда /configure не запускалась.\\n\\n" +
+                "Это не гарантирует успешную реальную замену.",
+                "Результат проверки",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information
+            );
+        }
+        catch (Exception ex)
+        {
+            InstallerLogger.Error(
+                "TestOfficeReplacementAsync",
+                ex
+            );
+
+            status.Text = "Ошибка проверки: " + ex.Message;
+
+            MessageBox.Show(
+                this,
+                ex.Message,
+                "Ошибка проверки готовности",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error
             );
