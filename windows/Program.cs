@@ -569,13 +569,13 @@ public sealed class InstallerForm : Form
 
     private void RunDiagnostics()
     {
+        InstallerLogger.Write("Диагностика: кнопка нажата.");
+
         try
         {
-            // Повторно считываем сведения непосредственно
-            // перед созданием отчёта.
-            RefreshInstalledApps();
-            RefreshOfficeEdition();
-            UpdateCompatibilityDisplay();
+            // Используем уже обнаруженные данные Office.
+            // Повторное сканирование при нажатии не выполняем.
+            InstallerLogger.Write("Диагностика: подготовка данных.");
 
             var applications = new Dictionary<string, string>();
 
@@ -593,12 +593,13 @@ public sealed class InstallerForm : Form
                 applications
             );
 
+            InstallerLogger.Write("Диагностика: отчёт сформирован.");
+
             using var dialog = new SaveFileDialog
             {
                 Title = "Сохранить отчёт диагностики Office",
                 Filter = "Текстовый файл (*.txt)|*.txt",
-                FileName =
-                    "Office-Diagnostics-" +
+                FileName = "Office-Diagnostics-" +
                     DateTime.Now.ToString("yyyy-MM-dd-HHmmss") +
                     ".txt",
                 AddExtension = true,
@@ -606,11 +607,19 @@ public sealed class InstallerForm : Form
                 OverwritePrompt = true
             };
 
-            if (dialog.ShowDialog() != DialogResult.OK)
+            InstallerLogger.Write(
+                "Диагностика: открытие окна сохранения.");
+
+            var result = dialog.ShowDialog(this);
+
+            InstallerLogger.Write(
+                "Диагностика: окно сохранения закрыто. Результат: " +
+                result);
+
+            if (result != DialogResult.OK)
             {
                 InstallerLogger.Write(
-                    "Сохранение диагностического отчёта отменено.");
-
+                    "Диагностика: сохранение отменено.");
                 return;
             }
 
@@ -621,16 +630,15 @@ public sealed class InstallerForm : Form
             );
 
             InstallerLogger.Write(
-                "Диагностический отчёт сохранён: " +
-                dialog.FileName
-            );
+                "Диагностика: отчёт сохранён: " +
+                dialog.FileName);
 
-            status.Text = "Отчёт диагностики успешно сохранён.";
+            status.Text = "Отчёт диагностики сохранён.";
 
             MessageBox.Show(
-                "Диагностический отчёт успешно создан.\\n\\n" +
-                dialog.FileName +
-                "\\n\\nУстановленные приложения Office не изменялись.",
+                this,
+                "Диагностический отчёт сохранён.\\n\\n" +
+                dialog.FileName,
                 "Диагностика завершена",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information
@@ -640,9 +648,8 @@ public sealed class InstallerForm : Form
         {
             InstallerLogger.Error("Диагностика", ex);
 
-            status.Text = "Ошибка диагностики: " + ex.Message;
-
             MessageBox.Show(
+                this,
                 ex.Message,
                 "Ошибка диагностики",
                 MessageBoxButtons.OK,
