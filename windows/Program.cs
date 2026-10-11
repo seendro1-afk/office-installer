@@ -1157,6 +1157,42 @@ public sealed class InstallerForm : Form
         );
     }
 
+    private void VerifyOfficeRemoval(string removalXml)
+    {
+        RefreshOfficeEdition();
+
+        var document = XDocument.Parse(removalXml);
+
+        string[] removedProductIds = document.Root!
+            .Element("Remove")!
+            .Elements("Product")
+            .Select(element =>
+                (string?)element.Attribute("ID") ?? "")
+            .ToArray();
+
+        string[] remainingProducts = GetProductIds();
+
+        string[] notRemoved = removedProductIds
+            .Intersect(
+                remainingProducts,
+                StringComparer.OrdinalIgnoreCase
+            )
+            .ToArray();
+
+        if (notRemoved.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "ODT завершил удаление, но некоторые продукты " +
+                "Office 2021 всё ещё обнаруживаются: " +
+                string.Join(", ", notRemoved)
+            );
+        }
+
+        InstallerLogger.Write(
+            "Проверка удаления Office 2021 пройдена."
+        );
+    }
+
     private void ValidateRemovalConfiguration(string removalXml)
     {
         // Повторно считываем установленную конфигурацию.
@@ -1862,21 +1898,6 @@ public sealed class InstallerForm : Form
     {
         InstallerLogger.Write("Получен запрос на установку Office.");
 
-        if (replacementModeBox.Checked)
-        {
-            MessageBox.Show(
-                this,
-                "Режим замены Office пока находится в разработке.\n\n" +
-                "Удаление существующих продуктов отключено. " +
-                "Используйте кнопку «Посмотреть план замены».",
-                "Замена Office пока недоступна",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information
-            );
-
-            return;
-        }
-
         if (!boxes.Values.Any(box => box.Checked))
         {
             MessageBox.Show(
@@ -2039,6 +2060,77 @@ public sealed class InstallerForm : Form
             );
 
             ValidateDownloadedOfficeFiles();
+
+            if (replacementModeBox.Checked)
+            {
+                // Перед удалением повторно проверяем Office.
+                RefreshOfficeEdition();
+                ValidateReplacementMode();
+
+                string removalXml =
+                    CreateRemovalConfiguration();
+
+                ValidateRemovalConfiguration(removalXml);
+
+                if (!ConfirmOfficeReplacement(removalXml))
+                {
+                    status.Text = "Замена Office отменена пользователем.";
+                    return;
+                }
+
+                // Последняя проверка непосредственно перед ODT.
+                RefreshOfficeEdition();
+                ValidateRemovalConfiguration(removalXml);
+
+                string removalFolder = Path.Combine(
+                    Path.GetTempPath(),
+                    "OfficeInstaller",
+                    Guid.NewGuid().ToString("N")
+                );
+
+                Directory.CreateDirectory(removalFolder);
+
+                string removalPath = Path.Combine(
+                    removalFolder,
+                    "remove.xml"
+                );
+
+                File.WriteAllText(removalPath, removalXml);
+
+                InstallerLogger.Write(
+                    "Запуск удаления Office 2021 через ODT."
+                );
+
+                using var removalProcess =
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = setupPath,
+                        Arguments = $"/configure \"{removalPath}\"",
+                        UseShellExecute = false,
+                        WorkingDirectory =
+                            Path.GetDirectoryName(setupPath)!
+                    })
+                    ?? throw new InvalidOperationException(
+                        "Не удалось запустить удаление Office 2021."
+                    );
+
+                await removalProcess.WaitForExitAsync();
+
+                InstallerLogger.Write(
+                    "Удаление Office 2021 завершилось. Код: " +
+                    removalProcess.ExitCode
+                );
+
+                if (removalProcess.ExitCode != 0)
+                {
+                    throw new InvalidOperationException(
+                        "Не удалось удалить Office 2021. " +
+                        $"Код ODT: {removalProcess.ExitCode}."
+                    );
+                }
+
+                VerifyOfficeRemoval(removalXml);
+            }
 
             SetInstallationStage(
                 4,
