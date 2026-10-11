@@ -139,6 +139,9 @@ public sealed class InstallerForm : Form
     private readonly Button openLogs =
         CreateButton("Открыть журнал");
 
+    private readonly Button diagnosticsButton =
+        CreateButton("Диагностика");
+
     private readonly ProgressBar progress = new()
     {
         Width = ContentWidth,
@@ -438,6 +441,11 @@ public sealed class InstallerForm : Form
 
         odtCard.Controls.Add(openLogs);
 
+        diagnosticsButton.Click += (_, _) => RunDiagnostics();
+
+        odtCard.Controls.Add(diagnosticsButton);
+
+
 
         odtCard.Controls.Add(progress);
         odtCard.Controls.Add(status);
@@ -557,6 +565,90 @@ public sealed class InstallerForm : Form
         row.Controls.Add(value, 1, 0);
 
         parent.Controls.Add(row);
+    }
+
+    private void RunDiagnostics()
+    {
+        try
+        {
+            // Повторно считываем сведения непосредственно
+            // перед созданием отчёта.
+            RefreshInstalledApps();
+            RefreshOfficeEdition();
+            UpdateCompatibilityDisplay();
+
+            var applications = new Dictionary<string, string>();
+
+            foreach (string app in Apps)
+            {
+                applications[app] = appStatuses[app].Text;
+            }
+
+            string? blockReason = GetInstallationBlockReason();
+
+            string report = OfficeDiagnostics.GenerateReport(
+                detectedOffice,
+                SelectedArchitecture,
+                blockReason,
+                applications
+            );
+
+            using var dialog = new SaveFileDialog
+            {
+                Title = "Сохранить отчёт диагностики Office",
+                Filter = "Текстовый файл (*.txt)|*.txt",
+                FileName =
+                    "Office-Diagnostics-" +
+                    DateTime.Now.ToString("yyyy-MM-dd-HHmmss") +
+                    ".txt",
+                AddExtension = true,
+                DefaultExt = "txt",
+                OverwritePrompt = true
+            };
+
+            if (dialog.ShowDialog() != DialogResult.OK)
+            {
+                InstallerLogger.Write(
+                    "Сохранение диагностического отчёта отменено.");
+
+                return;
+            }
+
+            File.WriteAllText(
+                dialog.FileName,
+                report,
+                Encoding.UTF8
+            );
+
+            InstallerLogger.Write(
+                "Диагностический отчёт сохранён: " +
+                dialog.FileName
+            );
+
+            status.Text = "Отчёт диагностики успешно сохранён.";
+
+            MessageBox.Show(
+                "Диагностический отчёт успешно создан.\\n\\n" +
+                dialog.FileName +
+                "\\n\\nУстановленные приложения Office не изменялись.",
+                "Диагностика завершена",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information
+            );
+        }
+        catch (Exception ex)
+        {
+            InstallerLogger.Error("Диагностика", ex);
+
+            status.Text = "Ошибка диагностики: " + ex.Message;
+
+            MessageBox.Show(
+                ex.Message,
+                "Ошибка диагностики",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error
+            );
+        }
     }
 
     private void RefreshOfficeInformation()
