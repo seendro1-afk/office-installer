@@ -55,7 +55,21 @@ public sealed class InstallerForm : Form
     private readonly Label channelLabel = CreateInfoLabel();
     private readonly Label compatibilityLabel = CreateInfoLabel();
 
+    private readonly ComboBox architectureBox = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+        Width = 180
+    };
+
+    private readonly Label architectureHint = new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(590, 0),
+        ForeColor = Color.DimGray
+    };
+
     private OfficeDetectionInfo? detectedOffice;
+    private bool officeExecutablesDetected;
 
     private readonly Label status = new()
     {
@@ -105,7 +119,7 @@ public sealed class InstallerForm : Form
     {
         Text = "Office Installer — Office LTSC 2024";
 
-        ClientSize = new Size(680, 790);
+        ClientSize = new Size(680, 850);
         MinimumSize = new Size(700, 700);
 
         StartPosition = FormStartPosition.CenterScreen;
@@ -200,6 +214,19 @@ public sealed class InstallerForm : Form
         AddInfoRow(layout, "Версия:", versionLabel);
         AddInfoRow(layout, "Канал:", channelLabel);
         AddInfoRow(layout, "Совместимость:", compatibilityLabel);
+
+        AddHeading(layout, "Архитектура устанавливаемого Office");
+
+        architectureBox.Items.Add("x64 (64-битная)");
+        architectureBox.Items.Add("x86 (32-битная)");
+
+        architectureBox.SelectedIndex = 0;
+
+        architectureBox.SelectedIndexChanged += (_, _) =>
+            UpdateCompatibilityDisplay();
+
+        layout.Controls.Add(architectureBox);
+        layout.Controls.Add(architectureHint);
 
         AddHeading(layout, "Office Deployment Tool");
 
@@ -313,6 +340,8 @@ public sealed class InstallerForm : Form
     {
         RefreshInstalledApps();
         RefreshOfficeEdition();
+        SelectRecommendedArchitecture();
+        UpdateCompatibilityDisplay();
 
         status.Text =
             "Проверка приложений и конфигурации Office завершена.";
@@ -320,6 +349,8 @@ public sealed class InstallerForm : Form
 
     private void RefreshInstalledApps()
     {
+        officeExecutablesDetected = false;
+
         foreach (string app in Apps)
         {
             string? path = FindOfficeExecutable(Executables[app]);
@@ -328,6 +359,8 @@ public sealed class InstallerForm : Form
 
             if (path != null)
             {
+                officeExecutablesDetected = true;
+
                 string? version = GetExecutableVersion(path);
 
                 label.Text = version != null
@@ -356,9 +389,6 @@ public sealed class InstallerForm : Form
             versionLabel.Text = "Не определена";
             channelLabel.Text = "Не определён";
 
-            compatibilityLabel.Text = "Требуется проверка";
-            compatibilityLabel.ForeColor = Color.DarkOrange;
-
             return;
         }
 
@@ -367,38 +397,137 @@ public sealed class InstallerForm : Form
         architectureLabel.Text = detectedOffice.Architecture;
         versionLabel.Text = detectedOffice.Version;
         channelLabel.Text = detectedOffice.Channel;
+    }
 
-        if (IsX86OfficeInstalled())
+    private void SelectRecommendedArchitecture()
+    {
+        string architecture = detectedOffice?.Architecture ?? "";
+
+        if (architecture.Equals(
+            "x86",
+            StringComparison.OrdinalIgnoreCase))
         {
-            compatibilityLabel.Text =
-                "Установка LTSC 2024 x64 заблокирована: Office x86";
+            architectureBox.SelectedIndex = 1;
 
-            compatibilityLabel.ForeColor = Color.DarkRed;
+            architectureHint.Text =
+                "Автоматически выбрана x86: обнаружен 32-битный Office.";
         }
-        else if (detectedOffice.RequiresCompatibilityCheck)
+        else if (architecture.Equals(
+            "x64",
+            StringComparison.OrdinalIgnoreCase))
         {
-            compatibilityLabel.Text =
-                "Требуется проверка перед установкой LTSC 2024";
+            architectureBox.SelectedIndex = 0;
 
-            compatibilityLabel.ForeColor = Color.DarkOrange;
+            architectureHint.Text =
+                "Автоматически выбрана x64: обнаружен 64-битный Office.";
+        }
+        else
+        {
+            architectureBox.SelectedIndex = 0;
+
+            architectureHint.Text =
+                "По умолчанию выбрана x64. " +
+                "Если Office уже установлен, но его архитектура " +
+                "не определена, установка будет заблокирована.";
+        }
+    }
+
+    private string SelectedArchitecture =>
+        architectureBox.SelectedIndex == 1 ? "x86" : "x64";
+
+    private string? GetInstallationBlockReason()
+    {
+        if (detectedOffice == null)
+        {
+            return "Не удалось проверить установленный Office.";
+        }
+
+        string existingArchitecture = detectedOffice.Architecture;
+
+        bool knownArchitecture =
+            existingArchitecture.Equals(
+                "x86",
+                StringComparison.OrdinalIgnoreCase
+            ) ||
+            existingArchitecture.Equals(
+                "x64",
+                StringComparison.OrdinalIgnoreCase
+            );
+
+        if (detectedOffice.ClickToRunDetected && !knownArchitecture)
+        {
+            return
+                "Обнаружена установка Office Click-to-Run, " +
+                "но её архитектура не определена.";
+        }
+
+        if (knownArchitecture &&
+            !existingArchitecture.Equals(
+                SelectedArchitecture,
+                StringComparison.OrdinalIgnoreCase
+            ))
+        {
+            return
+                $"Установлен Office {existingArchitecture}, " +
+                $"а для установки выбран {SelectedArchitecture}. " +
+                "Архитектуры должны совпадать.";
+        }
+
+        if (!detectedOffice.ClickToRunDetected)
+        {
+            if (officeExecutablesDetected)
+            {
+                return
+                    "Обнаружены исполняемые файлы Office, " +
+                    "но конфигурация Click-to-Run не определена. " +
+                    "Требуется ручная проверка.";
+            }
+
+            return null;
+        }
+
+        string[] productIds = detectedOffice.ProductIds.Split(
+            new[] { ',', ';' },
+            StringSplitOptions.RemoveEmptyEntries |
+            StringSplitOptions.TrimEntries
+        );
+
+        if (productIds.Length == 0 ||
+            productIds.Any(id =>
+                !id.Equals(
+                    "ProPlus2024Volume",
+                    StringComparison.OrdinalIgnoreCase
+                )))
+        {
+            return
+                "Обнаружены продукты Office, отличные от " +
+                "ProPlus2024Volume. Для установки LTSC 2024 " +
+                "требуется отдельная проверка совместимости " +
+                "Office, Project и Visio.";
+        }
+
+        return null;
+    }
+
+    private void UpdateCompatibilityDisplay()
+    {
+        string? reason = GetInstallationBlockReason();
+
+        if (reason != null)
+        {
+            compatibilityLabel.Text = "Установка заблокирована";
+            compatibilityLabel.ForeColor = Color.DarkRed;
+
+            compatibilityLabel.AccessibleDescription = reason;
         }
         else
         {
             compatibilityLabel.Text =
-                "Обнаружен ProPlus2024Volume";
+                "Предварительная проверка пройдена";
 
             compatibilityLabel.ForeColor = Color.DarkGreen;
+            compatibilityLabel.AccessibleDescription = "";
         }
-    }
-
-    private bool IsX86OfficeInstalled()
-    {
-        return detectedOffice?.ClickToRunDetected == true &&
-               string.Equals(
-                   detectedOffice.Architecture.Trim(),
-                   "x86",
-                   StringComparison.OrdinalIgnoreCase
-               );
     }
 
     private static string? FindOfficeExecutable(string executableName)
@@ -478,6 +607,7 @@ public sealed class InstallerForm : Form
         install.Enabled = !busy;
         browse.Enabled = !busy;
         refresh.Enabled = !busy;
+        architectureBox.Enabled = !busy;
 
         foreach (CheckBox box in boxes.Values)
         {
@@ -540,37 +670,30 @@ public sealed class InstallerForm : Form
             return;
         }
 
-        // Проверяем установленный Office непосредственно перед установкой.
+        // Повторно проверяем Office перед установкой.
+        RefreshInstalledApps();
         RefreshOfficeEdition();
+        UpdateCompatibilityDisplay();
 
-        // Защита от установки x64 поверх существующего Office x86.
-        // Проверка выполняется до подготовки ODT и запуска setup.exe.
-        if (IsX86OfficeInstalled())
+        string? blockReason = GetInstallationBlockReason();
+
+        if (blockReason != null)
         {
-            string products = detectedOffice?.ProductIds
-                ?? "Не определены";
-
-            string edition = detectedOffice?.Edition
-                ?? "Не определена";
-
             MessageBox.Show(
                 "УСТАНОВКА ЗАБЛОКИРОВАНА\n\n" +
-                "Обнаружен 32-битный Microsoft Office.\n\n" +
-                $"Редакция: {edition}\n" +
-                $"Продукты: {products}\n" +
-                "Архитектура: x86\n\n" +
-                "Установщик настроен на Office LTSC 2024 (x64).\n\n" +
-                "Нельзя продолжить установку x64, пока на " +
-                "компьютере обнаружен Office x86.\n\n" +
-                "Существующие Office, Project и Visio " +
-                "не будут изменены.",
-                "Несовместимая архитектура Office",
+                blockReason + "\n\n" +
+                $"Редакция: {detectedOffice?.Edition}\n" +
+                $"Продукты: {detectedOffice?.ProductIds}\n" +
+                $"Установленная архитектура: " +
+                $"{detectedOffice?.Architecture}\n" +
+                $"Выбранная архитектура: {SelectedArchitecture}\n\n" +
+                "Office Deployment Tool не будет запущен.",
+                "Проверка совместимости Office",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error
             );
 
-            status.Text =
-                "Установка заблокирована: обнаружен Office x86.";
+            status.Text = "Установка заблокирована: " + blockReason;
 
             return;
         }
@@ -593,31 +716,6 @@ public sealed class InstallerForm : Form
             return;
         }
 
-        // Для других редакций Office пока сохраняем предупреждение.
-        if (detectedOffice == null ||
-            !detectedOffice.ClickToRunDetected ||
-            detectedOffice.RequiresCompatibilityCheck)
-        {
-            var compatibilityConfirmation = MessageBox.Show(
-                "На компьютере обнаружена другая или неизвестная " +
-                "конфигурация Microsoft Office.\n\n" +
-                $"Редакция: {detectedOffice?.Edition ?? "Не определена"}\n" +
-                $"Продукт: {detectedOffice?.ProductIds ?? "Не определён"}\n" +
-                $"Архитектура: {detectedOffice?.Architecture ?? "Не определена"}\n\n" +
-                "Установка Office LTSC 2024 может изменить " +
-                "существующий Office.\n\n" +
-                "Продолжить установку?",
-                "Предупреждение о совместимости Office",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning
-            );
-
-            if (compatibilityConfirmation != DialogResult.Yes)
-            {
-                return;
-            }
-        }
-
         string selectedApps = string.Join(
             ", ",
             Apps.Where(app => boxes[app].Checked)
@@ -626,12 +724,14 @@ public sealed class InstallerForm : Form
         var confirmation = MessageBox.Show(
             "Будут установлены выбранные приложения:\n\n" +
             selectedApps +
-            "\n\nOffice Deployment Tool может изменить " +
+            $"\n\nАрхитектура: {SelectedArchitecture}\n" +
+            "Редакция: Office LTSC Professional Plus 2024\n\n" +
+            "Office Deployment Tool может изменить " +
             "существующую установку Microsoft Office.\n\n" +
             "Продолжить?",
             "Подтверждение установки",
             MessageBoxButtons.YesNo,
-            MessageBoxIcon.Question
+            MessageBoxIcon.Warning
         );
 
         if (confirmation != DialogResult.Yes)
@@ -905,13 +1005,21 @@ public sealed class InstallerForm : Form
             ));
         }
 
+        int edition = SelectedArchitecture == "x86" ? 32 : 64;
+
         var configuration = new XDocument(
             new XElement(
                 "Configuration",
                 new XElement(
                     "Add",
-                    new XAttribute("OfficeClientEdition", "64"),
-                    new XAttribute("Channel", "PerpetualVL2024"),
+                    new XAttribute(
+                        "OfficeClientEdition",
+                        edition
+                    ),
+                    new XAttribute(
+                        "Channel",
+                        "PerpetualVL2024"
+                    ),
                     product
                 ),
                 new XElement(
