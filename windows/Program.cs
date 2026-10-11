@@ -1766,9 +1766,9 @@ public sealed class InstallerForm : Form
                 MaximumSize = new Size(700, 0),
 
                 Text =
-                    $"Версия: Office LTSC {SelectedOfficeYear}\\n" +
-                    $"Архитектура: {SelectedArchitecture}\\n" +
-                    $"Приложения: {selectedApps}\\n\\n" +
+                    $"Версия: Office LTSC {SelectedOfficeYear}\n" +
+                    $"Архитектура: {SelectedArchitecture}\n" +
+                    $"Приложения: {selectedApps}\n\n" +
                     "Предпросмотр не запускает установку."
             };
 
