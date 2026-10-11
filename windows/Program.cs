@@ -136,6 +136,9 @@ public sealed class InstallerForm : Form
     private readonly Button browse =
         CreateButton("Выбрать setup.exe");
 
+    private readonly Button openLogs =
+        CreateButton("Открыть журнал");
+
     private readonly ProgressBar progress = new()
     {
         Width = ContentWidth,
@@ -415,6 +418,27 @@ public sealed class InstallerForm : Form
         buttonRow.Controls.Add(install);
 
         odtCard.Controls.Add(buttonRow);
+        openLogs.Click += (_, _) =>
+        {
+            try
+            {
+                InstallerLogger.OpenDirectory();
+            }
+            catch (Exception ex)
+            {
+                InstallerLogger.Error("Открытие журнала", ex);
+
+                MessageBox.Show(
+                    ex.Message,
+                    "Ошибка открытия журнала",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        };
+
+        odtCard.Controls.Add(openLogs);
+
+
         odtCard.Controls.Add(progress);
         odtCard.Controls.Add(status);
 
@@ -437,7 +461,10 @@ public sealed class InstallerForm : Form
             await InstallAsync();
 
         Shown += (_, _) =>
+        {
+            InstallerLogger.Write("Запуск Office Installer.");
             RefreshOfficeInformation();
+        };
     }
 
     private static Button CreateButton(string text)
@@ -536,6 +563,15 @@ public sealed class InstallerForm : Form
     {
         RefreshInstalledApps();
         RefreshOfficeEdition();
+
+        InstallerLogger.Write(
+            "Обнаружен Office: " +
+            $"ClickToRun={detectedOffice?.ClickToRunDetected}; " +
+            $"Редакция={detectedOffice?.Edition}; " +
+            $"Продукты={detectedOffice?.ProductIds}; " +
+            $"Архитектура={detectedOffice?.Architecture}; " +
+            $"Версия={detectedOffice?.Version}; " +
+            $"Канал={detectedOffice?.Channel}.");
 
         SelectRecommendedArchitecture();
         UpdateCompatibilityDisplay();
@@ -806,6 +842,11 @@ public sealed class InstallerForm : Form
 
         bool canInstall = reason == null;
 
+        InstallerLogger.Write(
+            canInstall
+                ? $"Проверка совместимости пройдена. Архитектура: {SelectedArchitecture}."
+                : $"Установка заблокирована. Архитектура: {SelectedArchitecture}. Причина: {reason}");
+
         if (canInstall)
         {
             compatibilityPanel.BackColor =
@@ -952,6 +993,7 @@ public sealed class InstallerForm : Form
 
     private async Task CheckOdtAsync()
     {
+        InstallerLogger.Write("Начало проверки Office Deployment Tool.");
         SetBusy(true);
 
         try
@@ -960,6 +1002,9 @@ public sealed class InstallerForm : Form
                 await PrepareOdtAsync();
 
             odtPath.Text = setupPath;
+
+            InstallerLogger.Write(
+                "Проверка ODT успешно завершена. Путь: " + setupPath);
 
             status.Text =
                 "ODT готов. Office не устанавливался.";
@@ -978,6 +1023,8 @@ public sealed class InstallerForm : Form
         }
         catch (Exception ex)
         {
+            InstallerLogger.Error("CheckOdtAsync", ex);
+
             status.Text =
                 "Ошибка проверки ODT: " + ex.Message;
 
@@ -996,6 +1043,8 @@ public sealed class InstallerForm : Form
 
     private async Task InstallAsync()
     {
+        InstallerLogger.Write("Получен запрос на установку Office.");
+
         if (!boxes.Values.Any(box => box.Checked))
         {
             MessageBox.Show(
@@ -1018,6 +1067,10 @@ public sealed class InstallerForm : Form
 
         if (blockReason != null)
         {
+            InstallerLogger.Write(
+                "Установка остановлена проверкой совместимости: " +
+                blockReason);
+
             MessageBox.Show(
                 "УСТАНОВКА ЗАБЛОКИРОВАНА\n\n" +
                 blockReason + "\n\n" +
@@ -1097,6 +1150,12 @@ public sealed class InstallerForm : Form
             string configurationPath =
                 CreateConfiguration();
 
+            InstallerLogger.Write(
+                $"Запуск установки Office LTSC 2024. " +
+                $"Архитектура={SelectedArchitecture}; " +
+                $"Приложения={selectedApps}; " +
+                $"Конфигурация={configurationPath}.");
+
             status.Text =
                 "Установка Office. Дождитесь завершения...";
 
@@ -1118,6 +1177,10 @@ public sealed class InstallerForm : Form
                 );
 
             await process.WaitForExitAsync();
+
+            InstallerLogger.Write(
+                "Office Deployment Tool завершился. Код: " +
+                process.ExitCode);
 
             if (process.ExitCode != 0)
             {
@@ -1145,6 +1208,8 @@ public sealed class InstallerForm : Form
         }
         catch (Exception ex)
         {
+            InstallerLogger.Error("InstallAsync", ex);
+
             status.Text =
                 "Ошибка установки: " + ex.Message;
 
@@ -1206,6 +1271,8 @@ public sealed class InstallerForm : Form
             }
         }
 
+        InstallerLogger.Write("Начало скачивания ODT: " + OdtUrl);
+
         status.Text =
             "Скачивание Office Deployment Tool...";
 
@@ -1257,12 +1324,18 @@ public sealed class InstallerForm : Form
             );
         }
 
+        InstallerLogger.Write(
+            "SHA-256 ODT успешно проверен: " + actualHash);
+
         status.Text =
             "Проверка цифровой подписи ODT...";
 
         await VerifyAuthenticodeAsync(
             installerPath
         );
+
+        InstallerLogger.Write(
+            "Цифровая подпись скачанного ODT проверена.");
 
         status.Text =
             "Распаковка Office Deployment Tool...";
@@ -1305,6 +1378,10 @@ public sealed class InstallerForm : Form
             "Проверка подписи распакованного setup.exe...";
 
         await VerifyAuthenticodeAsync(setupPath);
+
+        InstallerLogger.Write(
+            "Распаковка ODT завершена. setup.exe проверен: " +
+            setupPath);
 
         return setupPath;
     }
