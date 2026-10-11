@@ -103,6 +103,26 @@ public sealed class InstallerForm : Form
         Padding = new Padding(14)
     };
 
+    private readonly ComboBox officeVersionBox = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+        Width = 260,
+        Font = new Font("Segoe UI", 10)
+    };
+
+    private int SelectedOfficeYear =>
+        officeVersionBox.SelectedIndex == 1 ? 2021 : 2024;
+
+    private string SelectedProductId =>
+        SelectedOfficeYear == 2021
+            ? "ProPlus2021Volume"
+            : "ProPlus2024Volume";
+
+    private string SelectedChannel =>
+        SelectedOfficeYear == 2021
+            ? "PerpetualVL2021"
+            : "PerpetualVL2024";
+
     private readonly ComboBox architectureBox = new()
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
@@ -312,6 +332,31 @@ public sealed class InstallerForm : Form
         );
 
         layout.Controls.Add(productsCard);
+
+        // Выбор версии Office
+
+        var versionCard = CreateCard("Версия Office");
+
+        officeVersionBox.Items.AddRange(new object[]
+        {
+            "Office LTSC 2024",
+            "Office LTSC 2021"
+        });
+
+        officeVersionBox.SelectedIndex = 0;
+
+        officeVersionBox.SelectedIndexChanged += (_, _) =>
+        {
+            Text = $"Office Installer — Office LTSC {SelectedOfficeYear}";
+
+            InstallerLogger.Write(
+                $"Выбрана версия Office LTSC {SelectedOfficeYear}.");
+
+            UpdateCompatibilityDisplay();
+        };
+
+        versionCard.Controls.Add(officeVersionBox);
+        layout.Controls.Add(versionCard);
 
         // Архитектура установки
 
@@ -587,6 +632,7 @@ public sealed class InstallerForm : Form
             string report = OfficeDiagnostics.GenerateReport(
                 detectedOffice,
                 SelectedArchitecture,
+                SelectedOfficeYear,
                 blockReason,
                 applications
             );
@@ -941,12 +987,24 @@ public sealed class InstallerForm : Form
                 "но идентификаторы продуктов определить не удалось.";
         }
 
+        // Повторную установку существующего Office
+        // пока не разрешаем без отдельной проверки.
+        if (ids.Any(id => id.Equals(
+            SelectedProductId,
+            StringComparison.OrdinalIgnoreCase)))
+        {
+            return
+                $"Office LTSC {SelectedOfficeYear} уже обнаружен. " +
+                "Повторная установка поверх существующей " +
+                "конфигурации пока заблокирована.";
+        }
+
         var incompatibleProducts = new List<string>();
 
         foreach (string id in ids)
         {
             if (id.Equals(
-                "ProPlus2024Volume",
+                SelectedProductId,
                 StringComparison.OrdinalIgnoreCase))
             {
                 continue;
@@ -999,7 +1057,7 @@ public sealed class InstallerForm : Form
 
             return
                 "Обнаружены продукты, совместимость которых " +
-                "с установкой Office LTSC 2024 не подтверждена: " +
+                $"с установкой Office LTSC {SelectedOfficeYear} не подтверждена: " +
                 products + ". " +
                 $"Установленная архитектура: {existingArchitecture}. " +
                 $"Выбранная архитектура: {SelectedArchitecture}.";
@@ -1152,6 +1210,7 @@ public sealed class InstallerForm : Form
         browse.Enabled = !busy;
         refresh.Enabled = !busy;
         architectureBox.Enabled = !busy;
+        officeVersionBox.Enabled = !busy;
 
         foreach (CheckBox box in boxes.Values)
         {
@@ -1615,7 +1674,7 @@ public sealed class InstallerForm : Form
 
             new XAttribute(
                 "ID",
-                "ProPlus2024Volume"
+                SelectedProductId
             ),
 
             new XElement(
@@ -1670,7 +1729,7 @@ public sealed class InstallerForm : Form
 
                     new XAttribute(
                         "Channel",
-                        "PerpetualVL2024"
+                        SelectedChannel
                     ),
 
                     product

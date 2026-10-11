@@ -6,6 +6,7 @@ public static class OfficeDiagnostics
     public static string GenerateReport(
         OfficeDetectionInfo? office,
         string selectedArchitecture,
+        int selectedOfficeYear,
         string? blockReason,
         Dictionary<string, string> applications)
     {
@@ -70,7 +71,8 @@ public static class OfficeDiagnostics
         report.AppendLine("------------------------------------------");
 
         report.AppendLine(
-            "Целевая редакция: Office LTSC Professional Plus 2024");
+            "Целевая редакция: Office LTSC Professional Plus " +
+            selectedOfficeYear);
 
         report.AppendLine(
             "Выбранная архитектура: " + selectedArchitecture);
