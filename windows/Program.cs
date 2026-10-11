@@ -1157,10 +1157,8 @@ public sealed class InstallerForm : Form
         );
     }
 
-    private void VerifyOfficeRemoval(string removalXml)
+    private async Task VerifyOfficeRemovalAsync(string removalXml)
     {
-        RefreshOfficeEdition();
-
         var document = XDocument.Parse(removalXml);
 
         string[] removedProductIds = document.Root!
@@ -1170,26 +1168,48 @@ public sealed class InstallerForm : Form
                 (string?)element.Attribute("ID") ?? "")
             .ToArray();
 
-        string[] remainingProducts = GetProductIds();
+        const int maxAttempts = 12;
+        const int delayMilliseconds = 5000;
 
-        string[] notRemoved = removedProductIds
-            .Intersect(
-                remainingProducts,
-                StringComparer.OrdinalIgnoreCase
-            )
-            .ToArray();
-
-        if (notRemoved.Length > 0)
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            throw new InvalidOperationException(
-                "ODT завершил удаление, но некоторые продукты " +
-                "Office 2021 всё ещё обнаруживаются: " +
+            RefreshOfficeEdition();
+
+            string[] remainingProducts = GetProductIds();
+
+            string[] notRemoved = removedProductIds
+                .Intersect(
+                    remainingProducts,
+                    StringComparer.OrdinalIgnoreCase
+                )
+                .ToArray();
+
+            if (notRemoved.Length == 0)
+            {
+                InstallerLogger.Write(
+                    "Удаление Office 2021 подтверждено. " +
+                    $"Попытка {attempt}/{maxAttempts}."
+                );
+
+                return;
+            }
+
+            InstallerLogger.Write(
+                $"Проверка удаления {attempt}/{maxAttempts}. " +
+                "Остались продукты: " +
                 string.Join(", ", notRemoved)
             );
+
+            if (attempt < maxAttempts)
+            {
+                await Task.Delay(delayMilliseconds);
+            }
         }
 
-        InstallerLogger.Write(
-            "Проверка удаления Office 2021 пройдена."
+        throw new InvalidOperationException(
+            "Не удалось подтвердить удаление Office 2021. " +
+            "Некоторые старые продукты всё ещё обнаруживаются. " +
+            "Проверьте состояние Office перед повторной попыткой."
         );
     }
 
@@ -2129,7 +2149,7 @@ public sealed class InstallerForm : Form
                     );
                 }
 
-                VerifyOfficeRemoval(removalXml);
+                await VerifyOfficeRemovalAsync(removalXml);
             }
 
             SetInstallationStage(
