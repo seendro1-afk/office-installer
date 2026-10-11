@@ -1202,6 +1202,17 @@ public sealed class InstallerForm : Form
         }
     }
 
+    private void SetInstallationStage(
+        int stage,
+        string description)
+    {
+        string message =
+            $"Этап {stage}/4 — {description}";
+
+        status.Text = message;
+        InstallerLogger.Write(message);
+    }
+
     private void SetBusy(bool busy)
     {
         isBusy = busy;
@@ -1350,7 +1361,7 @@ public sealed class InstallerForm : Form
         var confirmation = MessageBox.Show(
             $"Приложения: {selectedApps}\n" +
             $"Архитектура: {SelectedArchitecture}\n" +
-            "Редакция: Office LTSC Professional Plus 2024\n\n" +
+            $"Редакция: Office LTSC Professional Plus {SelectedOfficeYear}\n\n" +
             "Office Deployment Tool может изменить " +
             "существующую установку Microsoft Office.\n\n" +
             "Продолжить?",
@@ -1370,25 +1381,31 @@ public sealed class InstallerForm : Form
 
         try
         {
+            SetInstallationStage(
+                1,
+                "Подготовка Office Deployment Tool");
+
             string setupPath =
                 await PrepareOdtAsync();
 
             odtPath.Text = setupPath;
 
-            status.Text =
-                "Создание конфигурации Office LTSC 2024...";
+            SetInstallationStage(
+                2,
+                $"Создание конфигурации Office LTSC {SelectedOfficeYear}");
 
             string configurationPath =
                 CreateConfiguration();
 
             InstallerLogger.Write(
-                $"Запуск установки Office LTSC 2024. " +
+                $"Запуск установки Office LTSC {SelectedOfficeYear}. " +
                 $"Архитектура={SelectedArchitecture}; " +
                 $"Приложения={selectedApps}; " +
                 $"Конфигурация={configurationPath}.");
 
-            status.Text =
-                "Установка Office. Дождитесь завершения...";
+            SetInstallationStage(
+                3,
+                $"Установка Office LTSC {SelectedOfficeYear}");
 
             using var process =
                 Process.Start(new ProcessStartInfo
@@ -1421,11 +1438,18 @@ public sealed class InstallerForm : Form
                 );
             }
 
+            SetInstallationStage(
+                4,
+                "Проверка установленного Office");
+
             RefreshOfficeInformation();
 
             status.Text =
                 "ODT завершил работу. " +
                 "Проверьте приложения Office.";
+
+            InstallerLogger.Write(
+                $"Все этапы установки Office LTSC {SelectedOfficeYear} завершены.");
 
             MessageBox.Show(
                 "Office Deployment Tool завершил работу.\n\n" +
