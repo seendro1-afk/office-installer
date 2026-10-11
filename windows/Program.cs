@@ -73,6 +73,28 @@ public sealed class InstallerForm : Form
         Color.FromArgb(205, 211, 220);
 
     private readonly Dictionary<string, CheckBox> boxes = new();
+    private readonly CheckBox replacementModeBox = new()
+    {
+        Text = "Замена существующей версии Office",
+        AutoSize = true,
+        Checked = false
+    };
+
+    private readonly CheckBox projectBox = new()
+    {
+        Text = "Project Professional",
+        AutoSize = true,
+        Checked = false
+    };
+
+    private readonly CheckBox visioBox = new()
+    {
+        Text = "Visio Professional",
+        AutoSize = true,
+        Checked = false
+    };
+
+
     private readonly Dictionary<string, Label> appStatuses = new();
 
     private readonly Label officeProductLabel = CreateValueLabel();
@@ -294,6 +316,23 @@ public sealed class InstallerForm : Form
         appsCard.Controls.Add(refresh);
         layout.Controls.Add(appsCard);
 
+        // Дополнительные продукты Office LTSC
+
+        var additionalCard =
+            CreateCard("Дополнительные продукты");
+
+        additionalCard.Controls.Add(projectBox);
+        additionalCard.Controls.Add(visioBox);
+
+        additionalCard.Controls.Add(new Label
+        {
+            Text = "Для Project и Visio требуются отдельные лицензии.",
+            AutoSize = true,
+            ForeColor = TextSecondary
+        });
+
+        layout.Controls.Add(additionalCard);
+
         // Установленные продукты
 
         var productsCard = CreateCard("Установленные продукты");
@@ -385,6 +424,74 @@ public sealed class InstallerForm : Form
         architectureCard.Controls.Add(architectureHint);
 
         layout.Controls.Add(architectureCard);
+
+        // Режим установки
+
+        var installationModeCard = CreateCard("Режим установки");
+
+        installationModeCard.Controls.Add(replacementModeBox);
+
+        installationModeCard.Controls.Add(new Label
+        {
+            Text =
+                "Режим замены пока находится в разработке. " +
+                "Удаление существующего Office отключено.",
+            AutoSize = true,
+            ForeColor = TextSecondary,
+            MaximumSize = new Size(500, 0)
+        });
+
+        replacementModeBox.CheckedChanged += (_, _) =>
+        {
+            UpdateCompatibilityDisplay();
+        };
+
+        var replacementPlanButton = new Button
+        {
+            Text = "Посмотреть план замены",
+            Width = 240,
+            Height = 38,
+            AutoSize = false
+        };
+
+        replacementPlanButton.Click += (_, _) =>
+        {
+            try
+            {
+                RefreshInstalledApps();
+                RefreshOfficeEdition();
+
+                string plan = BuildReplacementPlan();
+
+                InstallerLogger.Write(
+                    "Сформирован предварительный план замены Office."
+                );
+
+                MessageBox.Show(
+                    this,
+                    plan,
+                    "План замены Office",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+            catch (Exception ex)
+            {
+                InstallerLogger.Error("BuildReplacementPlan", ex);
+
+                MessageBox.Show(
+                    this,
+                    ex.Message,
+                    "Ошибка формирования плана",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+        };
+
+        installationModeCard.Controls.Add(replacementPlanButton);
+
+        layout.Controls.Add(installationModeCard);
 
         // Проверка совместимости
 
@@ -977,6 +1084,96 @@ public sealed class InstallerForm : Form
         architectureBox.SelectedIndex == 1
             ? "x86"
             : "x64";
+
+    private string BuildReplacementPlan()
+    {
+        string[] installedProducts = GetProductIds();
+
+        var selectedProducts = new List<string>
+        {
+            SelectedProductId
+        };
+
+        if (projectBox.Checked)
+        {
+            selectedProducts.Add(
+                SelectedOfficeYear == 2021
+                    ? "ProjectPro2021Volume"
+                    : "ProjectPro2024Volume"
+            );
+        }
+
+        if (visioBox.Checked)
+        {
+            selectedProducts.Add(
+                SelectedOfficeYear == 2021
+                    ? "VisioPro2021Volume"
+                    : "VisioPro2024Volume"
+            );
+        }
+
+        var lines = new List<string>
+        {
+            "ПЛАН ЗАМЕНЫ OFFICE",
+            "",
+            "Установленная архитектура: " +
+                (detectedOffice?.Architecture ?? "Неизвестна"),
+            "Выбранная архитектура: " +
+                SelectedArchitecture,
+            "",
+            "Обнаруженные продукты:"
+        };
+
+        if (installedProducts.Length == 0)
+        {
+            lines.Add("  Не обнаружены");
+        }
+        else
+        {
+            foreach (string id in installedProducts)
+            {
+                lines.Add("  - " + id);
+            }
+        }
+
+        lines.Add("");
+        lines.Add("Выбраны для установки:");
+
+        foreach (string id in selectedProducts)
+        {
+            lines.Add("  + " + id);
+        }
+
+        lines.Add("");
+        lines.Add("Продукты, которые не будут переустановлены:");
+
+        var notReinstalled = installedProducts
+            .Where(id => !selectedProducts.Contains(
+                id,
+                StringComparer.OrdinalIgnoreCase
+            ))
+            .ToArray();
+
+        if (notReinstalled.Length == 0)
+        {
+            lines.Add("  Нет");
+        }
+        else
+        {
+            foreach (string id in notReinstalled)
+            {
+                lines.Add("  ! " + id);
+            }
+        }
+
+        lines.Add("");
+        lines.Add(
+            "ВНИМАНИЕ: это предварительный план. " +
+            "Удаление продуктов пока не выполняется."
+        );
+
+        return string.Join(Environment.NewLine, lines);
+    }
 
     private string? GetInstallationBlockReason()
     {
@@ -1637,6 +1834,42 @@ public sealed class InstallerForm : Form
             );
         }
 
+        if (projectBox.Checked)
+        {
+            string expectedProject =
+                SelectedOfficeYear == 2021
+                    ? "ProjectPro2021Volume"
+                    : "ProjectPro2024Volume";
+
+            if (!productIds.Contains(
+                expectedProject,
+                StringComparer.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "После установки не найден Project: " +
+                    expectedProject
+                );
+            }
+        }
+
+        if (visioBox.Checked)
+        {
+            string expectedVisio =
+                SelectedOfficeYear == 2021
+                    ? "VisioPro2021Volume"
+                    : "VisioPro2024Volume";
+
+            if (!productIds.Contains(
+                expectedVisio,
+                StringComparer.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "После установки не найден Visio: " +
+                    expectedVisio
+                );
+            }
+        }
+
         if (!string.Equals(
             installed.Architecture,
             SelectedArchitecture,
@@ -2253,32 +2486,88 @@ public sealed class InstallerForm : Form
             );
         }
 
-        XElement product = add.Element("Product")
-            ?? throw new InvalidOperationException(
-                "Отсутствует элемент Product."
-            );
-
-        string? actualProduct =
-            (string?)product.Attribute("ID");
-
-        if (actualProduct != SelectedProductId)
+        var expectedProducts = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase
+        )
         {
-            throw new InvalidOperationException(
-                "Product ID не соответствует выбранной версии Office."
+            SelectedProductId
+        };
+
+        if (projectBox.Checked)
+        {
+            expectedProducts.Add(
+                SelectedOfficeYear == 2021
+                    ? "ProjectPro2021Volume"
+                    : "ProjectPro2024Volume"
             );
         }
 
-        XElement language = product.Element("Language")
-            ?? throw new InvalidOperationException(
-                "Отсутствует элемент Language."
-            );
-
-        if ((string?)language.Attribute("ID") != "ru-ru")
+        if (visioBox.Checked)
         {
-            throw new InvalidOperationException(
-                "Язык Office должен быть ru-ru."
+            expectedProducts.Add(
+                SelectedOfficeYear == 2021
+                    ? "VisioPro2021Volume"
+                    : "VisioPro2024Volume"
             );
         }
+
+        var products = add.Elements("Product").ToList();
+
+        var actualProducts = products
+            .Select(element => (string?)element.Attribute("ID"))
+            .ToList();
+
+        if (actualProducts.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new InvalidOperationException(
+                "У одного из продуктов отсутствует Product ID."
+            );
+        }
+
+        var actualProductIds = actualProducts
+            .Select(id => id!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (actualProductIds.Count != products.Count)
+        {
+            throw new InvalidOperationException(
+                "В XML обнаружены повторяющиеся Product ID."
+            );
+        }
+
+        if (!actualProductIds.SetEquals(expectedProducts))
+        {
+            throw new InvalidOperationException(
+                "Список продуктов XML не соответствует выбранным. " +
+                "Ожидаются: " +
+                string.Join(", ", expectedProducts) +
+                ". Обнаружены: " +
+                string.Join(", ", actualProductIds)
+            );
+        }
+
+        foreach (XElement item in products)
+        {
+            XElement language = item.Element("Language")
+                ?? throw new InvalidOperationException(
+                    "У продукта отсутствует элемент Language."
+                );
+
+            if ((string?)language.Attribute("ID") != "ru-ru")
+            {
+                throw new InvalidOperationException(
+                    "Язык всех продуктов должен быть ru-ru."
+                );
+            }
+        }
+
+        XElement product = products.Single(element =>
+            string.Equals(
+                (string?)element.Attribute("ID"),
+                SelectedProductId,
+                StringComparison.OrdinalIgnoreCase
+            )
+        );
 
         var excludedApps = product
             .Elements("ExcludeApp")
@@ -2399,6 +2688,49 @@ public sealed class InstallerForm : Form
             );
         }
 
+        var products = new List<XElement>
+        {
+            product
+        };
+
+        if (projectBox.Checked)
+        {
+            products.Add(
+                new XElement(
+                    "Product",
+                    new XAttribute(
+                        "ID",
+                        SelectedOfficeYear == 2021
+                            ? "ProjectPro2021Volume"
+                            : "ProjectPro2024Volume"
+                    ),
+                    new XElement(
+                        "Language",
+                        new XAttribute("ID", "ru-ru")
+                    )
+                )
+            );
+        }
+
+        if (visioBox.Checked)
+        {
+            products.Add(
+                new XElement(
+                    "Product",
+                    new XAttribute(
+                        "ID",
+                        SelectedOfficeYear == 2021
+                            ? "VisioPro2021Volume"
+                            : "VisioPro2024Volume"
+                    ),
+                    new XElement(
+                        "Language",
+                        new XAttribute("ID", "ru-ru")
+                    )
+                )
+            );
+        }
+
         int edition =
             SelectedArchitecture == "x86"
                 ? 32
@@ -2429,7 +2761,7 @@ public sealed class InstallerForm : Form
                         downloadFolder
                     ),
 
-                    product
+                    products
                 ),
 
                 new XElement(
