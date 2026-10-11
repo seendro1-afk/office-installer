@@ -1531,11 +1531,12 @@ public sealed class InstallerForm : Form
                 5,
                 "Проверка установленного Office");
 
+            await VerifyOfficeInstallationWithRetryAsync();
             RefreshOfficeInformation();
 
             status.Text =
-                "ODT завершил работу. " +
-                "Проверьте приложения Office.";
+                $"Office LTSC {SelectedOfficeYear} установлен. " +
+                "Проверьте лицензирование.";
 
             InstallerLogger.Write(
                 $"Все этапы установки Office LTSC {SelectedOfficeYear} завершены.");
@@ -1568,6 +1569,109 @@ public sealed class InstallerForm : Form
         {
             SetBusy(false);
         }
+    }
+
+    private async Task VerifyOfficeInstallationWithRetryAsync()
+    {
+        InvalidOperationException? lastError = null;
+
+        for (int attempt = 1; attempt <= 6; attempt++)
+        {
+            try
+            {
+                VerifyOfficeInstallation();
+                return;
+            }
+            catch (InvalidOperationException ex)
+            {
+                lastError = ex;
+
+                InstallerLogger.Write(
+                    $"Проверка Office: попытка {attempt}/6. " +
+                    ex.Message
+                );
+
+                if (attempt < 6)
+                {
+                    status.Text =
+                        $"Проверка установки Office: {attempt}/6...";
+
+                    await Task.Delay(TimeSpan.FromSeconds(5));
+                }
+            }
+        }
+
+        throw new InvalidOperationException(
+            "Не удалось подтвердить установку Office " +
+            "после нескольких проверок. " +
+            lastError?.Message
+        );
+    }
+
+    private void VerifyOfficeInstallation()
+    {
+        OfficeDetectionInfo installed =
+            OfficeDetectionService.Detect();
+
+        if (!installed.ClickToRunDetected)
+        {
+            throw new InvalidOperationException(
+                "После установки Office Click-to-Run не обнаружен."
+            );
+        }
+
+        string[] productIds = installed.ProductIds
+            .Split(
+                ',',
+                StringSplitOptions.RemoveEmptyEntries |
+                StringSplitOptions.TrimEntries
+            );
+
+        if (!productIds.Contains(
+            SelectedProductId,
+            StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Не обнаружен продукт {SelectedProductId}. " +
+                $"Найдены: {installed.ProductIds}."
+            );
+        }
+
+        if (!string.Equals(
+            installed.Architecture,
+            SelectedArchitecture,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Архитектура Office не совпадает. " +
+                $"Ожидалась: {SelectedArchitecture}; " +
+                $"обнаружена: {installed.Architecture}."
+            );
+        }
+
+        foreach (string app in Apps)
+        {
+            if (!boxes[app].Checked)
+            {
+                continue;
+            }
+
+            string? executable =
+                FindOfficeExecutable(Executables[app]);
+
+            if (executable == null)
+            {
+                throw new InvalidOperationException(
+                    $"После установки не найдено приложение {app}."
+                );
+            }
+        }
+
+        InstallerLogger.Write(
+            $"Проверка Office LTSC {SelectedOfficeYear} успешна. " +
+            $"Продукт={SelectedProductId}; " +
+            $"Архитектура={SelectedArchitecture}."
+        );
     }
 
     private async Task<string> PrepareOdtAsync()
