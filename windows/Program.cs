@@ -1147,11 +1147,27 @@ public sealed class InstallerForm : Form
         lines.Add("");
         lines.Add("Продукты, которые не будут переустановлены:");
 
+        static string GetProductFamily(string id)
+        {
+            if (id.StartsWith("Project", StringComparison.OrdinalIgnoreCase))
+                return "Project";
+
+            if (id.StartsWith("Visio", StringComparison.OrdinalIgnoreCase))
+                return "Visio";
+
+            if (id.StartsWith("ProPlus", StringComparison.OrdinalIgnoreCase) ||
+                id.StartsWith("Standard", StringComparison.OrdinalIgnoreCase))
+                return "Office";
+
+            return id;
+        }
+
+        var selectedFamilies = selectedProducts
+            .Select(GetProductFamily)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var notReinstalled = installedProducts
-            .Where(id => !selectedProducts.Contains(
-                id,
-                StringComparer.OrdinalIgnoreCase
-            ))
+            .Where(id => !selectedFamilies.Contains(GetProductFamily(id)))
             .ToArray();
 
         if (notReinstalled.Length == 0)
