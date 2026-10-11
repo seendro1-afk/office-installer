@@ -162,6 +162,9 @@ public sealed class InstallerForm : Form
     private readonly Button diagnosticsButton =
         CreateButton("Диагностика");
 
+    private readonly Button previewButton =
+        CreateButton("Предпросмотр XML");
+
     private readonly ProgressBar progress = new()
     {
         Width = ContentWidth,
@@ -489,6 +492,10 @@ public sealed class InstallerForm : Form
         diagnosticsButton.Click += (_, _) => RunDiagnostics();
 
         odtCard.Controls.Add(diagnosticsButton);
+
+        previewButton.Click += (_, _) => PreviewConfiguration();
+
+        odtCard.Controls.Add(previewButton);
 
 
 
@@ -1218,6 +1225,7 @@ public sealed class InstallerForm : Form
         isBusy = busy;
 
         checkOdt.Enabled = !busy;
+        previewButton.Enabled = !busy;
         browse.Enabled = !busy;
         refresh.Enabled = !busy;
         architectureBox.Enabled = !busy;
@@ -1687,6 +1695,123 @@ public sealed class InstallerForm : Form
             throw new InvalidOperationException(
                 "Файл не прошёл проверку " +
                 "цифровой подписи Microsoft."
+            );
+        }
+    }
+
+    private void PreviewConfiguration()
+    {
+        try
+        {
+            string configurationPath =
+                CreateConfiguration();
+
+            string xml =
+                File.ReadAllText(configurationPath);
+
+            string selectedApps = string.Join(
+                ", ",
+                Apps.Where(app => boxes[app].Checked)
+            );
+
+            if (string.IsNullOrWhiteSpace(selectedApps))
+            {
+                selectedApps = "Не выбраны";
+            }
+
+            InstallerLogger.Write(
+                $"Открыт предпросмотр Office LTSC {SelectedOfficeYear}. " +
+                $"Архитектура={SelectedArchitecture}; " +
+                $"Приложения={selectedApps}.");
+
+            using var previewForm = new Form
+            {
+                Text =
+                    $"Предпросмотр — Office LTSC {SelectedOfficeYear}",
+
+                StartPosition =
+                    FormStartPosition.CenterParent,
+
+                Size = new Size(760, 650),
+
+                MinimumSize = new Size(560, 450),
+
+                Font = new Font("Segoe UI", 10)
+            };
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 3,
+                Padding = new Padding(16)
+            };
+
+            layout.RowStyles.Add(
+                new RowStyle(SizeType.AutoSize)
+            );
+
+            layout.RowStyles.Add(
+                new RowStyle(SizeType.Percent, 100)
+            );
+
+            layout.RowStyles.Add(
+                new RowStyle(SizeType.AutoSize)
+            );
+
+            var summary = new Label
+            {
+                AutoSize = true,
+
+                MaximumSize = new Size(700, 0),
+
+                Text =
+                    $"Версия: Office LTSC {SelectedOfficeYear}\\n" +
+                    $"Архитектура: {SelectedArchitecture}\\n" +
+                    $"Приложения: {selectedApps}\\n\\n" +
+                    "Предпросмотр не запускает установку."
+            };
+
+            var xmlBox = new TextBox
+            {
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Both,
+                WordWrap = false,
+                Dock = DockStyle.Fill,
+                Font = new Font("Consolas", 10),
+                Text = xml
+            };
+
+            var closeButton = new Button
+            {
+                Text = "Закрыть",
+                AutoSize = true,
+                Anchor = AnchorStyles.Right,
+                DialogResult = DialogResult.OK
+            };
+
+            layout.Controls.Add(summary, 0, 0);
+            layout.Controls.Add(xmlBox, 0, 1);
+            layout.Controls.Add(closeButton, 0, 2);
+
+            previewForm.Controls.Add(layout);
+            previewForm.AcceptButton = closeButton;
+
+            previewForm.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            InstallerLogger.Error(
+                "PreviewConfiguration",
+                ex
+            );
+
+            MessageBox.Show(
+                ex.Message,
+                "Ошибка предпросмотра",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error
             );
         }
     }
