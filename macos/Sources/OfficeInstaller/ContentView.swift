@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct ContentView: View {
-
     @State private var word = true
     @State private var excel = true
     @State private var powerpoint = true
@@ -9,9 +8,7 @@ struct ContentView: View {
     @State private var onenote = false
 
     var body: some View {
-
         VStack(alignment: .leading, spacing: 20) {
-
             Text("Office Installer 2024")
                 .font(.largeTitle)
                 .bold()
@@ -22,15 +19,12 @@ struct ContentView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 12) {
-
-                Toggle("Microsoft Word", isOn: $word)
-                Toggle("Microsoft Excel", isOn: $excel)
-                Toggle("Microsoft PowerPoint", isOn: $powerpoint)
-                Toggle("Microsoft Outlook", isOn: $outlook)
-                Toggle("Microsoft OneNote", isOn: $onenote)
-
+                appRow("Microsoft Word", selected: $word)
+                appRow("Microsoft Excel", selected: $excel)
+                appRow("Microsoft PowerPoint", selected: $powerpoint)
+                appRow("Microsoft Outlook", selected: $outlook)
+                appRow("Microsoft OneNote", selected: $onenote)
             }
-            .toggleStyle(.checkbox)
 
             Divider()
 
@@ -46,9 +40,28 @@ struct ContentView: View {
             Text("Для использования Office необходима действующая лицензия Microsoft.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
         }
         .padding(30)
-        .frame(width: 520)
+        .frame(width: 560)
+    }
+
+    private func appRow(
+        _ name: String,
+        selected: Binding<Bool>
+    ) -> some View {
+        HStack {
+            Toggle(name, isOn: selected)
+                .toggleStyle(.checkbox)
+
+            Spacer()
+
+            let installed = OfficeCatalog.applications
+                .first(where: { $0.name == name })?
+                .isInstalled ?? false
+
+            Text(installed ? "Установлено" : "Не установлено")
+                .font(.caption)
+                .foregroundStyle(installed ? .green : .secondary)
+        }
     }
 }
