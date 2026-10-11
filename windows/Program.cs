@@ -1820,7 +1820,49 @@ public sealed class InstallerForm : Form
             {
                 try
                 {
-                    Clipboard.SetText(xmlBox.Text);
+                    string textToCopy = xmlBox.Text;
+                    Exception? clipboardError = null;
+
+                    using var completed =
+                        new System.Threading.ManualResetEventSlim(false);
+
+                    var thread = new System.Threading.Thread(() =>
+                    {
+                        try
+                        {
+                            Clipboard.SetText(textToCopy);
+                        }
+                        catch (Exception ex)
+                        {
+                            clipboardError = ex;
+                        }
+                        finally
+                        {
+                            completed.Set();
+                        }
+                    });
+
+                    thread.SetApartmentState(
+                        System.Threading.ApartmentState.STA
+                    );
+
+                    thread.Start();
+
+                    if (!completed.Wait(
+                        TimeSpan.FromSeconds(10)))
+                    {
+                        throw new TimeoutException(
+                            "Превышено время ожидания буфера обмена."
+                        );
+                    }
+
+                    if (clipboardError != null)
+                    {
+                        throw new InvalidOperationException(
+                            "Не удалось скопировать XML.",
+                            clipboardError
+                        );
+                    }
 
                     InstallerLogger.Write(
                         "XML-конфигурация скопирована.");
@@ -1851,39 +1893,53 @@ public sealed class InstallerForm : Form
             {
                 try
                 {
-                    using var dialog = new SaveFileDialog
-                    {
-                        Title = "Сохранить конфигурацию Office",
-                        Filter = "XML-файлы (*.xml)|*.xml",
-                        FileName = "configuration.xml",
-                        DefaultExt = "xml",
-                        AddExtension = true,
-                        OverwritePrompt = true
-                    };
+                    string documents =
+                        Environment.GetFolderPath(
+                            Environment.SpecialFolder.MyDocuments
+                        );
 
-                    if (dialog.ShowDialog(previewForm)
-                        != DialogResult.OK)
-                    {
-                        return;
-                    }
+                    string folder = Path.Combine(
+                        documents,
+                        "Office Installer",
+                        "Configurations"
+                    );
+
+                    Directory.CreateDirectory(folder);
+
+                    string fileName =
+                        $"Office-LTSC-{SelectedOfficeYear}-" +
+                        $"{SelectedArchitecture}-" +
+                        $"{DateTime.Now:yyyyMMdd-HHmmss-fff}-" +
+                        $"{Guid.NewGuid():N}.xml";
+
+                    string filePath =
+                        Path.Combine(folder, fileName);
 
                     File.WriteAllText(
-                        dialog.FileName,
+                        filePath,
                         xmlBox.Text,
                         new System.Text.UTF8Encoding(false)
                     );
 
                     InstallerLogger.Write(
                         "XML-конфигурация сохранена: " +
-                        dialog.FileName);
+                        filePath
+                    );
 
                     MessageBox.Show(
                         previewForm,
-                        "Конфигурация успешно сохранена.",
+                        "Конфигурация сохранена:\n\n" +
+                        filePath,
                         "Готово",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information
                     );
+
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = folder,
+                        UseShellExecute = true
+                    });
                 }
                 catch (Exception ex)
                 {
