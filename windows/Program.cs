@@ -18,14 +18,12 @@ public sealed class InstallerForm : Form
         "fbb64358fd4168acd52ee4efe47ffd032b6231dfb415ae2dce61b0e58ba67f86";
 
     private static readonly string OdtFolder = Path.Combine(
-        Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData
-        ),
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "OfficeInstaller",
         "ODT"
     );
 
-    private readonly string[] apps =
+    private static readonly string[] Apps =
     {
         "Word",
         "Excel",
@@ -35,12 +33,29 @@ public sealed class InstallerForm : Form
         "Access"
     };
 
+    private static readonly Dictionary<string, string> Executables = new()
+    {
+        ["Word"] = "WINWORD.EXE",
+        ["Excel"] = "EXCEL.EXE",
+        ["PowerPoint"] = "POWERPNT.EXE",
+        ["Outlook"] = "OUTLOOK.EXE",
+        ["OneNote"] = "ONENOTE.EXE",
+        ["Access"] = "MSACCESS.EXE"
+    };
+
     private readonly Dictionary<string, CheckBox> boxes = new();
+    private readonly Dictionary<string, Label> appStatuses = new();
 
     private readonly Label status = new()
     {
         AutoSize = true,
-        Text = "Выберите приложения Office LTSC 2024."
+        Text = "Проверка установленных приложений Office..."
+    };
+
+    private readonly Button refresh = new()
+    {
+        Text = "Обновить список",
+        AutoSize = true
     };
 
     private readonly Button checkOdt = new()
@@ -79,8 +94,9 @@ public sealed class InstallerForm : Form
     {
         Text = "Office Installer — Office LTSC 2024";
 
-        ClientSize = new Size(560, 590);
-        MinimumSize = new Size(580, 610);
+        ClientSize = new Size(650, 660);
+        MinimumSize = new Size(670, 680);
+
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10);
 
@@ -98,11 +114,7 @@ public sealed class InstallerForm : Form
         layout.Controls.Add(new Label
         {
             Text = "Office LTSC 2024",
-            Font = new Font(
-                "Segoe UI",
-                16,
-                FontStyle.Bold
-            ),
+            Font = new Font("Segoe UI", 17, FontStyle.Bold),
             AutoSize = true
         });
 
@@ -118,8 +130,33 @@ public sealed class InstallerForm : Form
             AutoSize = true
         });
 
-        foreach (string app in apps)
+        layout.Controls.Add(new Label
         {
+            Text = "Установленные приложения",
+            Font = new Font(Font, FontStyle.Bold),
+            AutoSize = true,
+            Margin = new Padding(3, 18, 3, 8)
+        });
+
+        foreach (string app in Apps)
+        {
+            var row = new TableLayoutPanel
+            {
+                Width = 590,
+                Height = 36,
+                ColumnCount = 2,
+                RowCount = 1,
+                Margin = new Padding(0, 2, 0, 2)
+            };
+
+            row.ColumnStyles.Add(
+                new ColumnStyle(SizeType.Absolute, 190)
+            );
+
+            row.ColumnStyles.Add(
+                new ColumnStyle(SizeType.Percent, 100)
+            );
+
             var box = new CheckBox
             {
                 Text = app,
@@ -128,21 +165,37 @@ public sealed class InstallerForm : Form
                     "Excel" or
                     "PowerPoint" or
                     "Outlook",
-                AutoSize = true
+                AutoSize = true,
+                Anchor = AnchorStyles.Left
+            };
+
+            var appStatus = new Label
+            {
+                Text = "Проверка...",
+                AutoSize = true,
+                Anchor = AnchorStyles.Left,
+                ForeColor = Color.DimGray
             };
 
             boxes[app] = box;
-            layout.Controls.Add(box);
+            appStatuses[app] = appStatus;
+
+            row.Controls.Add(box, 0, 0);
+            row.Controls.Add(appStatus, 1, 0);
+
+            layout.Controls.Add(row);
         }
+
+        refresh.Click += (_, _) => RefreshInstalledApps();
+
+        layout.Controls.Add(refresh);
 
         layout.Controls.Add(new Label
         {
             Text = "Office Deployment Tool",
-            Font = new Font(
-                Font,
-                FontStyle.Bold
-            ),
-            AutoSize = true
+            Font = new Font(Font, FontStyle.Bold),
+            AutoSize = true,
+            Margin = new Padding(3, 20, 3, 8)
         });
 
         layout.Controls.Add(odtPath);
@@ -151,10 +204,8 @@ public sealed class InstallerForm : Form
         {
             using var dialog = new OpenFileDialog
             {
-                Filter =
-                    "Office Deployment Tool (setup.exe)|setup.exe",
-                Title =
-                    "Выберите setup.exe из Office Deployment Tool"
+                Filter = "Office Deployment Tool (setup.exe)|setup.exe",
+                Title = "Выберите setup.exe из Office Deployment Tool"
             };
 
             if (dialog.ShowDialog() == DialogResult.OK)
@@ -162,8 +213,7 @@ public sealed class InstallerForm : Form
                 odtPath.Text = dialog.FileName;
 
                 status.Text =
-                    "Выбран setup.exe. " +
-                    "Перед использованием будет проверена подпись.";
+                    "Выбран setup.exe. Перед использованием будет проверена подпись.";
             }
         };
 
@@ -171,7 +221,7 @@ public sealed class InstallerForm : Form
 
         var buttonRow = new FlowLayoutPanel
         {
-            Width = 510,
+            Width = 590,
             Height = 48,
             WrapContents = false
         };
@@ -182,14 +232,112 @@ public sealed class InstallerForm : Form
         layout.Controls.Add(buttonRow);
         layout.Controls.Add(progress);
 
-        status.MaximumSize = new Size(490, 0);
+        status.MaximumSize = new Size(590, 0);
         layout.Controls.Add(status);
 
-        checkOdt.Click += async (_, _) =>
-            await CheckOdtAsync();
+        checkOdt.Click += async (_, _) => await CheckOdtAsync();
+        install.Click += async (_, _) => await InstallAsync();
 
-        install.Click += async (_, _) =>
-            await InstallAsync();
+        Shown += (_, _) => RefreshInstalledApps();
+    }
+
+    private void RefreshInstalledApps()
+    {
+        foreach (string app in Apps)
+        {
+            string? path = FindOfficeExecutable(Executables[app]);
+
+            Label label = appStatuses[app];
+
+            if (path != null)
+            {
+                string? version = GetExecutableVersion(path);
+
+                label.Text = version != null
+                    ? $"Установлен — версия {version}"
+                    : "Установлен";
+
+                label.ForeColor = Color.DarkGreen;
+            }
+            else
+            {
+                label.Text = "Не найден";
+                label.ForeColor = Color.DarkRed;
+            }
+        }
+
+        status.Text = "Проверка установленных приложений завершена.";
+    }
+
+    private static string? FindOfficeExecutable(string executableName)
+    {
+        var roots = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        foreach (string variable in new[]
+        {
+            "ProgramFiles",
+            "ProgramFiles(x86)",
+            "ProgramW6432"
+        })
+        {
+            string? root = Environment.GetEnvironmentVariable(variable);
+
+            if (!string.IsNullOrWhiteSpace(root))
+            {
+                roots.Add(root);
+            }
+        }
+
+        foreach (string root in roots)
+        {
+            foreach (string relativePath in new[]
+            {
+                Path.Combine(
+                    "Microsoft Office",
+                    "root",
+                    "Office16",
+                    executableName
+                ),
+                Path.Combine(
+                    "Microsoft Office",
+                    "Office16",
+                    executableName
+                ),
+                Path.Combine(
+                    "Microsoft Office",
+                    "Office15",
+                    executableName
+                )
+            })
+            {
+                string candidate = Path.Combine(root, relativePath);
+
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetExecutableVersion(string path)
+    {
+        try
+        {
+            var info = FileVersionInfo.GetVersionInfo(path);
+
+            return string.IsNullOrWhiteSpace(info.ProductVersion)
+                ? info.FileVersion
+                : info.ProductVersion;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void SetBusy(bool busy)
@@ -197,6 +345,7 @@ public sealed class InstallerForm : Form
         checkOdt.Enabled = !busy;
         install.Enabled = !busy;
         browse.Enabled = !busy;
+        refresh.Enabled = !busy;
 
         foreach (CheckBox box in boxes.Values)
         {
@@ -217,13 +366,11 @@ public sealed class InstallerForm : Form
             odtPath.Text = setupPath;
 
             status.Text =
-                "ODT готов. Проверка завершена. " +
-                "Office не устанавливался.";
+                "ODT готов. Проверка завершена. Office не устанавливался.";
 
             MessageBox.Show(
                 "Office Deployment Tool успешно подготовлен.\n\n" +
-                "Файл setup.exe найден и прошёл проверку " +
-                "цифровой подписи Microsoft.\n\n" +
+                "Файл setup.exe найден и прошёл проверку цифровой подписи Microsoft.\n\n" +
                 "Установка Office НЕ запускалась.",
                 "Проверка ODT завершена",
                 MessageBoxButtons.OK,
@@ -232,8 +379,7 @@ public sealed class InstallerForm : Form
         }
         catch (Exception ex)
         {
-            status.Text =
-                "Ошибка проверки ODT: " + ex.Message;
+            status.Text = "Ошибка проверки ODT: " + ex.Message;
 
             MessageBox.Show(
                 ex.Message,
@@ -270,8 +416,7 @@ public sealed class InstallerForm : Form
         if (!isAdministrator)
         {
             MessageBox.Show(
-                "Для установки Office запустите программу " +
-                "от имени администратора.",
+                "Для установки Office запустите программу от имени администратора.",
                 "Требуются права администратора",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning
@@ -282,15 +427,14 @@ public sealed class InstallerForm : Form
 
         string selectedApps = string.Join(
             ", ",
-            apps.Where(app => boxes[app].Checked)
+            Apps.Where(app => boxes[app].Checked)
         );
 
         var confirmation = MessageBox.Show(
             "Будут установлены выбранные приложения:\n\n" +
             selectedApps +
-            "\n\nOffice Deployment Tool может изменить " +
-            "существующую установку Microsoft Office.\n\n" +
-            "Продолжить?",
+            "\n\nOffice Deployment Tool может изменить существующую " +
+            "установку Microsoft Office.\n\nПродолжить?",
             "Подтверждение установки",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question
@@ -309,28 +453,19 @@ public sealed class InstallerForm : Form
 
             odtPath.Text = setupPath;
 
-            status.Text =
-                "Создание конфигурации Office LTSC 2024...";
+            status.Text = "Создание конфигурации Office LTSC 2024...";
 
             string configurationPath = CreateConfiguration();
 
-            status.Text =
-                "Установка Office. Дождитесь завершения...";
+            status.Text = "Установка Office. Дождитесь завершения...";
 
-            using var process = Process.Start(
-                new ProcessStartInfo
-                {
-                    FileName = setupPath,
-
-                    Arguments =
-                        $"/configure \"{configurationPath}\"",
-
-                    UseShellExecute = false,
-
-                    WorkingDirectory =
-                        Path.GetDirectoryName(setupPath)!
-                }
-            ) ?? throw new InvalidOperationException(
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = setupPath,
+                Arguments = $"/configure \"{configurationPath}\"",
+                UseShellExecute = false,
+                WorkingDirectory = Path.GetDirectoryName(setupPath)!
+            }) ?? throw new InvalidOperationException(
                 "Не удалось запустить Office Deployment Tool."
             );
 
@@ -339,19 +474,18 @@ public sealed class InstallerForm : Form
             if (process.ExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    "Office Deployment Tool завершился " +
-                    $"с кодом {process.ExitCode}."
+                    $"Office Deployment Tool завершился с кодом {process.ExitCode}."
                 );
             }
 
-            status.Text =
-                "ODT завершил установку. " +
-                "Проверьте приложения Office.";
+            RefreshInstalledApps();
+
+            status.Text = "ODT завершил установку. Проверьте приложения Office.";
 
             MessageBox.Show(
                 "Office Deployment Tool завершил работу.\n\n" +
-                "Проверьте установленные приложения " +
-                "и их лицензирование.",
+                "Список установленных приложений обновлён.\n" +
+                "Проверьте установку и лицензирование Office.",
                 "Установка завершена",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information
@@ -359,8 +493,7 @@ public sealed class InstallerForm : Form
         }
         catch (Exception ex)
         {
-            status.Text =
-                "Ошибка установки: " + ex.Message;
+            status.Text = "Ошибка установки: " + ex.Message;
 
             MessageBox.Show(
                 ex.Message,
@@ -377,17 +510,11 @@ public sealed class InstallerForm : Form
 
     private async Task<string> PrepareOdtAsync()
     {
-        // Если пользователь вручную выбрал setup.exe,
-        // проверяем его подпись перед использованием.
-
         if (File.Exists(odtPath.Text))
         {
-            status.Text =
-                "Проверка выбранного setup.exe...";
+            status.Text = "Проверка выбранного setup.exe...";
 
-            await VerifyAuthenticodeAsync(
-                odtPath.Text
-            );
+            await VerifyAuthenticodeAsync(odtPath.Text);
 
             return odtPath.Text;
         }
@@ -404,19 +531,13 @@ public sealed class InstallerForm : Form
             "setup.exe"
         );
 
-        // Проверяем ранее распакованный setup.exe.
-        // Не используем его без проверки подписи.
-
         if (File.Exists(setupPath))
         {
-            status.Text =
-                "Проверка ранее распакованного setup.exe...";
+            status.Text = "Проверка ранее распакованного setup.exe...";
 
             try
             {
-                await VerifyAuthenticodeAsync(
-                    setupPath
-                );
+                await VerifyAuthenticodeAsync(setupPath);
 
                 return setupPath;
             }
@@ -426,8 +547,7 @@ public sealed class InstallerForm : Form
             }
         }
 
-        status.Text =
-            "Скачивание Office Deployment Tool...";
+        status.Text = "Скачивание Office Deployment Tool...";
 
         using (var client = new HttpClient
         {
@@ -450,13 +570,11 @@ public sealed class InstallerForm : Form
             await source.CopyToAsync(destination);
         }
 
-        status.Text =
-            "Проверка SHA-256 скачанного ODT...";
+        status.Text = "Проверка SHA-256 скачанного ODT...";
 
         string actualHash;
 
-        await using (var stream =
-            File.OpenRead(installerPath))
+        await using (var stream = File.OpenRead(installerPath))
         {
             actualHash = Convert.ToHexString(
                 await SHA256.HashDataAsync(stream)
@@ -470,45 +588,25 @@ public sealed class InstallerForm : Form
             File.Delete(installerPath);
 
             throw new InvalidOperationException(
-                "SHA-256 скачанного ODT " +
-                "не совпадает с проверенным значением."
+                "SHA-256 скачанного ODT не совпадает с проверенным значением."
             );
         }
 
-        status.Text =
-            "Проверка цифровой подписи ODT...";
+        status.Text = "Проверка цифровой подписи ODT...";
 
-        await VerifyAuthenticodeAsync(
-            installerPath
-        );
+        await VerifyAuthenticodeAsync(installerPath);
 
-        status.Text =
-            "Распаковка Office Deployment Tool...";
+        status.Text = "Распаковка Office Deployment Tool...";
 
-        // ИСПРАВЛЕНИЕ:
-        //
-        // UseShellExecute = true
-        // Verb = "runas"
-        //
-        // Windows сможет запросить повышение прав через UAC.
-
-        using var extraction = Process.Start(
-            new ProcessStartInfo
-            {
-                FileName = installerPath,
-
-                Arguments =
-                    $"/quiet /extract:\"{OdtFolder}\"",
-
-                UseShellExecute = true,
-
-                Verb = "runas",
-
-                WorkingDirectory = OdtFolder
-            }
-        ) ?? throw new InvalidOperationException(
-            "Не удалось запустить распаковку " +
-            "Office Deployment Tool."
+        using var extraction = Process.Start(new ProcessStartInfo
+        {
+            FileName = installerPath,
+            Arguments = $"/quiet /extract:\"{OdtFolder}\"",
+            UseShellExecute = true,
+            Verb = "runas",
+            WorkingDirectory = OdtFolder
+        }) ?? throw new InvalidOperationException(
+            "Не удалось запустить распаковку Office Deployment Tool."
         );
 
         await extraction.WaitForExitAsync();
@@ -516,36 +614,28 @@ public sealed class InstallerForm : Form
         if (extraction.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                "Ошибка распаковки ODT. " +
-                $"Код: {extraction.ExitCode}."
+                $"Ошибка распаковки ODT. Код: {extraction.ExitCode}."
             );
         }
 
         if (!File.Exists(setupPath))
         {
             throw new FileNotFoundException(
-                "После распаковки ODT " +
-                "не найден файл setup.exe.",
+                "После распаковки ODT не найден setup.exe.",
                 setupPath
             );
         }
 
-        status.Text =
-            "Проверка подписи распакованного setup.exe...";
+        status.Text = "Проверка подписи распакованного setup.exe...";
 
-        await VerifyAuthenticodeAsync(
-            setupPath
-        );
+        await VerifyAuthenticodeAsync(setupPath);
 
         return setupPath;
     }
 
-    private static async Task VerifyAuthenticodeAsync(
-        string filePath
-    )
+    private static async Task VerifyAuthenticodeAsync(string filePath)
     {
-        string escapedPath =
-            filePath.Replace("'", "''");
+        string escapedPath = filePath.Replace("'", "''");
 
         string script =
             "$s = Get-AuthenticodeSignature -LiteralPath '" +
@@ -553,30 +643,22 @@ public sealed class InstallerForm : Form
             "'; " +
             "if ($s.Status -ne 'Valid' -or " +
             "$null -eq $s.SignerCertificate -or " +
-            "$s.SignerCertificate.Subject -notmatch " +
-            "'Microsoft Corporation') " +
+            "$s.SignerCertificate.Subject -notmatch 'Microsoft Corporation') " +
             "{ exit 1 }";
 
-        string encodedCommand =
-            Convert.ToBase64String(
-                Encoding.Unicode.GetBytes(script)
-            );
+        string encodedCommand = Convert.ToBase64String(
+            Encoding.Unicode.GetBytes(script)
+        );
 
-        using var process = Process.Start(
-            new ProcessStartInfo
-            {
-                FileName = "powershell.exe",
-
-                Arguments =
-                    "-NoProfile -NonInteractive " +
-                    "-EncodedCommand " +
-                    encodedCommand,
-
-                UseShellExecute = false,
-
-                CreateNoWindow = true
-            }
-        ) ?? throw new InvalidOperationException(
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            Arguments =
+                "-NoProfile -NonInteractive -EncodedCommand " +
+                encodedCommand,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        }) ?? throw new InvalidOperationException(
             "Не удалось запустить проверку Authenticode."
         );
 
@@ -585,8 +667,7 @@ public sealed class InstallerForm : Form
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                "Файл не прошёл проверку " +
-                "цифровой подписи Microsoft."
+                "Файл не прошёл проверку цифровой подписи Microsoft."
             );
         }
     }
@@ -595,98 +676,49 @@ public sealed class InstallerForm : Form
     {
         var product = new XElement(
             "Product",
-
-            new XAttribute(
-                "ID",
-                "ProPlus2024Volume"
-            ),
-
+            new XAttribute("ID", "ProPlus2024Volume"),
             new XElement(
                 "Language",
-
-                new XAttribute(
-                    "ID",
-                    "ru-ru"
-                )
+                new XAttribute("ID", "ru-ru")
             )
         );
 
-        foreach (string app in apps)
+        foreach (string app in Apps)
         {
             if (!boxes[app].Checked)
             {
-                product.Add(
-                    new XElement(
-                        "ExcludeApp",
-
-                        new XAttribute(
-                            "ID",
-                            app
-                        )
-                    )
-                );
+                product.Add(new XElement(
+                    "ExcludeApp",
+                    new XAttribute("ID", app)
+                ));
             }
         }
 
-        foreach (string app in new[]
+        foreach (string app in new[] { "Lync", "Groove" })
         {
-            "Lync",
-            "Groove"
-        })
-        {
-            product.Add(
-                new XElement(
-                    "ExcludeApp",
-
-                    new XAttribute(
-                        "ID",
-                        app
-                    )
-                )
-            );
+            product.Add(new XElement(
+                "ExcludeApp",
+                new XAttribute("ID", app)
+            ));
         }
 
         var configuration = new XDocument(
             new XElement(
                 "Configuration",
-
                 new XElement(
                     "Add",
-
-                    new XAttribute(
-                        "OfficeClientEdition",
-                        "64"
-                    ),
-
-                    new XAttribute(
-                        "Channel",
-                        "PerpetualVL2024"
-                    ),
-
+                    new XAttribute("OfficeClientEdition", "64"),
+                    new XAttribute("Channel", "PerpetualVL2024"),
                     product
                 ),
-
                 new XElement(
                     "Display",
-
-                    new XAttribute(
-                        "Level",
-                        "Full"
-                    ),
-
-                    new XAttribute(
-                        "AcceptEULA",
-                        "FALSE"
-                    )
+                    new XAttribute("Level", "Full"),
+                    new XAttribute("AcceptEULA", "FALSE")
                 ),
-
                 new XElement(
                     "Updates",
-
-                    new XAttribute(
-                        "Enabled",
-                        "TRUE"
-                    )
+                    new XAttribute("Enabled", "TRUE")
                 )
             )
         );
@@ -704,9 +736,7 @@ public sealed class InstallerForm : Form
             "configuration.xml"
         );
 
-        configuration.Save(
-            configurationPath
-        );
+        configuration.Save(configurationPath);
 
         return configurationPath;
     }
