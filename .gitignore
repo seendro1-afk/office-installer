@@ -1,0 +1,6 @@
+
+# Swift build files
+macos/.build/
+
+# VS Code
+.vscode/
