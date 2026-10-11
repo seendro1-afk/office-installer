@@ -463,6 +463,28 @@ public sealed class InstallerForm : Form
 
                 string plan = BuildReplacementPlan();
 
+                if (replacementModeBox.Checked)
+                {
+                    try
+                    {
+                        string removalXml =
+                            CreateRemovalConfiguration();
+
+                        plan += Environment.NewLine +
+                            Environment.NewLine +
+                            "XML ДЛЯ УДАЛЕНИЯ:" +
+                            Environment.NewLine +
+                            removalXml;
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        plan += Environment.NewLine +
+                            Environment.NewLine +
+                            "XML удаления не сформирован: " +
+                            ex.Message;
+                    }
+                }
+
                 InstallerLogger.Write(
                     "Сформирован предварительный план замены Office."
                 );
@@ -1084,6 +1106,65 @@ public sealed class InstallerForm : Form
         architectureBox.SelectedIndex == 1
             ? "x86"
             : "x64";
+
+    private string CreateRemovalConfiguration()
+    {
+        if (detectedOffice == null ||
+            !detectedOffice.ClickToRunDetected)
+        {
+            throw new InvalidOperationException(
+                "Не обнаружена установка Office Click-to-Run."
+            );
+        }
+
+        string[] installedProducts = GetProductIds();
+
+        string[] supportedProducts =
+        {
+            "ProPlus2021Volume",
+            "Standard2021Volume",
+            "ProjectPro2021Volume",
+            "ProjectStd2021Volume",
+            "VisioPro2021Volume",
+            "VisioStd2021Volume"
+        };
+
+        string[] productsToRemove = installedProducts
+            .Where(id => supportedProducts.Contains(
+                id,
+                StringComparer.OrdinalIgnoreCase
+            ))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (productsToRemove.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "Не обнаружены поддерживаемые продукты Office 2021 для удаления."
+            );
+        }
+
+        var configuration = new XDocument(
+            new XElement(
+                "Configuration",
+                new XElement(
+                    "Remove",
+                    productsToRemove.Select(id =>
+                        new XElement(
+                            "Product",
+                            new XAttribute("ID", id)
+                        )
+                    )
+                ),
+                new XElement(
+                    "Display",
+                    new XAttribute("Level", "Full")
+                )
+            )
+        );
+
+        return configuration.ToString();
+    }
 
     private string BuildReplacementPlan()
     {
