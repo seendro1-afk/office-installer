@@ -46,6 +46,15 @@ public sealed class InstallerForm : Form
     private readonly Dictionary<string, CheckBox> boxes = new();
     private readonly Dictionary<string, Label> appStatuses = new();
 
+    private readonly Label editionLabel = CreateInfoLabel();
+    private readonly Label productLabel = CreateInfoLabel();
+    private readonly Label architectureLabel = CreateInfoLabel();
+    private readonly Label versionLabel = CreateInfoLabel();
+    private readonly Label channelLabel = CreateInfoLabel();
+    private readonly Label compatibilityLabel = CreateInfoLabel();
+
+    private OfficeDetectionInfo? detectedOffice;
+
     private readonly Label status = new()
     {
         AutoSize = true,
@@ -78,13 +87,13 @@ public sealed class InstallerForm : Form
 
     private readonly TextBox odtPath = new()
     {
-        Width = 490,
+        Width = 590,
         ReadOnly = true
     };
 
     private readonly ProgressBar progress = new()
     {
-        Width = 490,
+        Width = 590,
         Height = 22,
         Style = ProgressBarStyle.Marquee,
         Visible = false
@@ -94,8 +103,8 @@ public sealed class InstallerForm : Form
     {
         Text = "Office Installer — Office LTSC 2024";
 
-        ClientSize = new Size(650, 660);
-        MinimumSize = new Size(670, 680);
+        ClientSize = new Size(680, 790);
+        MinimumSize = new Size(700, 700);
 
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10);
@@ -130,19 +139,13 @@ public sealed class InstallerForm : Form
             AutoSize = true
         });
 
-        layout.Controls.Add(new Label
-        {
-            Text = "Установленные приложения",
-            Font = new Font(Font, FontStyle.Bold),
-            AutoSize = true,
-            Margin = new Padding(3, 18, 3, 8)
-        });
+        AddHeading(layout, "Установленные приложения");
 
         foreach (string app in Apps)
         {
             var row = new TableLayoutPanel
             {
-                Width = 590,
+                Width = 610,
                 Height = 36,
                 ColumnCount = 2,
                 RowCount = 1,
@@ -169,13 +172,9 @@ public sealed class InstallerForm : Form
                 Anchor = AnchorStyles.Left
             };
 
-            var appStatus = new Label
-            {
-                Text = "Проверка...",
-                AutoSize = true,
-                Anchor = AnchorStyles.Left,
-                ForeColor = Color.DimGray
-            };
+            var appStatus = CreateInfoLabel();
+            appStatus.Text = "Проверка...";
+            appStatus.Anchor = AnchorStyles.Left;
 
             boxes[app] = box;
             appStatuses[app] = appStatus;
@@ -186,17 +185,19 @@ public sealed class InstallerForm : Form
             layout.Controls.Add(row);
         }
 
-        refresh.Click += (_, _) => RefreshInstalledApps();
-
+        refresh.Click += (_, _) => RefreshOfficeInformation();
         layout.Controls.Add(refresh);
 
-        layout.Controls.Add(new Label
-        {
-            Text = "Office Deployment Tool",
-            Font = new Font(Font, FontStyle.Bold),
-            AutoSize = true,
-            Margin = new Padding(3, 20, 3, 8)
-        });
+        AddHeading(layout, "Информация об установленном Office");
+
+        AddInfoRow(layout, "Редакция:", editionLabel);
+        AddInfoRow(layout, "Продукт:", productLabel);
+        AddInfoRow(layout, "Архитектура:", architectureLabel);
+        AddInfoRow(layout, "Версия:", versionLabel);
+        AddInfoRow(layout, "Канал:", channelLabel);
+        AddInfoRow(layout, "Совместимость:", compatibilityLabel);
+
+        AddHeading(layout, "Office Deployment Tool");
 
         layout.Controls.Add(odtPath);
 
@@ -221,7 +222,7 @@ public sealed class InstallerForm : Form
 
         var buttonRow = new FlowLayoutPanel
         {
-            Width = 590,
+            Width = 610,
             Height = 48,
             WrapContents = false
         };
@@ -238,7 +239,77 @@ public sealed class InstallerForm : Form
         checkOdt.Click += async (_, _) => await CheckOdtAsync();
         install.Click += async (_, _) => await InstallAsync();
 
-        Shown += (_, _) => RefreshInstalledApps();
+        Shown += (_, _) => RefreshOfficeInformation();
+    }
+
+    private static Label CreateInfoLabel()
+    {
+        return new Label
+        {
+            Text = "Не определено",
+            AutoSize = true,
+            MaximumSize = new Size(400, 0),
+            ForeColor = Color.DimGray
+        };
+    }
+
+    private void AddHeading(
+        FlowLayoutPanel layout,
+        string text
+    )
+    {
+        layout.Controls.Add(new Label
+        {
+            Text = text,
+            Font = new Font(Font, FontStyle.Bold),
+            AutoSize = true,
+            Margin = new Padding(3, 18, 3, 8)
+        });
+    }
+
+    private static void AddInfoRow(
+        FlowLayoutPanel layout,
+        string title,
+        Label value
+    )
+    {
+        var row = new TableLayoutPanel
+        {
+            Width = 610,
+            Height = 35,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 2, 0, 2)
+        };
+
+        row.ColumnStyles.Add(
+            new ColumnStyle(SizeType.Absolute, 190)
+        );
+
+        row.ColumnStyles.Add(
+            new ColumnStyle(SizeType.Percent, 100)
+        );
+
+        row.Controls.Add(new Label
+        {
+            Text = title,
+            AutoSize = true,
+            Anchor = AnchorStyles.Left
+        }, 0, 0);
+
+        value.Anchor = AnchorStyles.Left;
+        row.Controls.Add(value, 1, 0);
+
+        layout.Controls.Add(row);
+    }
+
+    private void RefreshOfficeInformation()
+    {
+        RefreshInstalledApps();
+        RefreshOfficeEdition();
+
+        status.Text =
+            "Проверка приложений и конфигурации Office завершена.";
     }
 
     private void RefreshInstalledApps()
@@ -265,8 +336,46 @@ public sealed class InstallerForm : Form
                 label.ForeColor = Color.DarkRed;
             }
         }
+    }
 
-        status.Text = "Проверка установленных приложений завершена.";
+    private void RefreshOfficeEdition()
+    {
+        detectedOffice = OfficeDetectionService.Detect();
+
+        if (!detectedOffice.ClickToRunDetected)
+        {
+            editionLabel.Text = "Click-to-Run не обнаружен";
+            productLabel.Text = "Не определён";
+            architectureLabel.Text = "Не определена";
+            versionLabel.Text = "Не определена";
+            channelLabel.Text = "Не определён";
+
+            compatibilityLabel.Text = "Требуется проверка";
+            compatibilityLabel.ForeColor = Color.DarkOrange;
+
+            return;
+        }
+
+        editionLabel.Text = detectedOffice.Edition;
+        productLabel.Text = detectedOffice.ProductIds;
+        architectureLabel.Text = detectedOffice.Architecture;
+        versionLabel.Text = detectedOffice.Version;
+        channelLabel.Text = detectedOffice.Channel;
+
+        if (detectedOffice.RequiresCompatibilityCheck)
+        {
+            compatibilityLabel.Text =
+                "Требуется проверка перед установкой LTSC 2024";
+
+            compatibilityLabel.ForeColor = Color.DarkOrange;
+        }
+        else
+        {
+            compatibilityLabel.Text =
+                "Обнаружен ProPlus2024Volume";
+
+            compatibilityLabel.ForeColor = Color.DarkGreen;
+        }
     }
 
     private static string? FindOfficeExecutable(string executableName)
@@ -425,6 +534,32 @@ public sealed class InstallerForm : Form
             return;
         }
 
+        RefreshOfficeEdition();
+
+        if (detectedOffice == null ||
+            !detectedOffice.ClickToRunDetected ||
+            detectedOffice.RequiresCompatibilityCheck)
+        {
+            var compatibilityConfirmation = MessageBox.Show(
+                "На компьютере обнаружена другая или неизвестная " +
+                "конфигурация Microsoft Office.\n\n" +
+                $"Редакция: {detectedOffice?.Edition ?? "Не определена"}\n" +
+                $"Продукт: {detectedOffice?.ProductIds ?? "Не определён"}\n" +
+                $"Архитектура: {detectedOffice?.Architecture ?? "Не определена"}\n\n" +
+                "Установка Office LTSC 2024 может изменить существующий Office.\n" +
+                "Некоторые сочетания продуктов и архитектур несовместимы.\n\n" +
+                "Продолжить установку?",
+                "Предупреждение о совместимости Office",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning
+            );
+
+            if (compatibilityConfirmation != DialogResult.Yes)
+            {
+                return;
+            }
+        }
+
         string selectedApps = string.Join(
             ", ",
             Apps.Where(app => boxes[app].Checked)
@@ -478,9 +613,10 @@ public sealed class InstallerForm : Form
                 );
             }
 
-            RefreshInstalledApps();
+            RefreshOfficeInformation();
 
-            status.Text = "ODT завершил установку. Проверьте приложения Office.";
+            status.Text =
+                "ODT завершил работу. Проверьте установленные приложения.";
 
             MessageBox.Show(
                 "Office Deployment Tool завершил работу.\n\n" +
