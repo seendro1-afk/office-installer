@@ -18,7 +18,9 @@ public sealed class InstallerForm : Form
         "fbb64358fd4168acd52ee4efe47ffd032b6231dfb415ae2dce61b0e58ba67f86";
 
     private static readonly string OdtFolder = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        Environment.GetFolderPath(
+            Environment.SpecialFolder.LocalApplicationData
+        ),
         "OfficeInstaller",
         "ODT"
     );
@@ -173,6 +175,7 @@ public sealed class InstallerForm : Form
             };
 
             var appStatus = CreateInfoLabel();
+
             appStatus.Text = "Проверка...";
             appStatus.Anchor = AnchorStyles.Left;
 
@@ -186,6 +189,7 @@ public sealed class InstallerForm : Form
         }
 
         refresh.Click += (_, _) => RefreshOfficeInformation();
+
         layout.Controls.Add(refresh);
 
         AddHeading(layout, "Информация об установленном Office");
@@ -234,6 +238,7 @@ public sealed class InstallerForm : Form
         layout.Controls.Add(progress);
 
         status.MaximumSize = new Size(590, 0);
+
         layout.Controls.Add(status);
 
         checkOdt.Click += async (_, _) => await CheckOdtAsync();
@@ -298,6 +303,7 @@ public sealed class InstallerForm : Form
         }, 0, 0);
 
         value.Anchor = AnchorStyles.Left;
+
         row.Controls.Add(value, 1, 0);
 
         layout.Controls.Add(row);
@@ -362,7 +368,14 @@ public sealed class InstallerForm : Form
         versionLabel.Text = detectedOffice.Version;
         channelLabel.Text = detectedOffice.Channel;
 
-        if (detectedOffice.RequiresCompatibilityCheck)
+        if (IsX86OfficeInstalled())
+        {
+            compatibilityLabel.Text =
+                "Установка LTSC 2024 x64 заблокирована: Office x86";
+
+            compatibilityLabel.ForeColor = Color.DarkRed;
+        }
+        else if (detectedOffice.RequiresCompatibilityCheck)
         {
             compatibilityLabel.Text =
                 "Требуется проверка перед установкой LTSC 2024";
@@ -376,6 +389,16 @@ public sealed class InstallerForm : Form
 
             compatibilityLabel.ForeColor = Color.DarkGreen;
         }
+    }
+
+    private bool IsX86OfficeInstalled()
+    {
+        return detectedOffice?.ClickToRunDetected == true &&
+               string.Equals(
+                   detectedOffice.Architecture.Trim(),
+                   "x86",
+                   StringComparison.OrdinalIgnoreCase
+               );
     }
 
     private static string? FindOfficeExecutable(string executableName)
@@ -517,6 +540,41 @@ public sealed class InstallerForm : Form
             return;
         }
 
+        // Проверяем установленный Office непосредственно перед установкой.
+        RefreshOfficeEdition();
+
+        // Защита от установки x64 поверх существующего Office x86.
+        // Проверка выполняется до подготовки ODT и запуска setup.exe.
+        if (IsX86OfficeInstalled())
+        {
+            string products = detectedOffice?.ProductIds
+                ?? "Не определены";
+
+            string edition = detectedOffice?.Edition
+                ?? "Не определена";
+
+            MessageBox.Show(
+                "УСТАНОВКА ЗАБЛОКИРОВАНА\n\n" +
+                "Обнаружен 32-битный Microsoft Office.\n\n" +
+                $"Редакция: {edition}\n" +
+                $"Продукты: {products}\n" +
+                "Архитектура: x86\n\n" +
+                "Установщик настроен на Office LTSC 2024 (x64).\n\n" +
+                "Нельзя продолжить установку x64, пока на " +
+                "компьютере обнаружен Office x86.\n\n" +
+                "Существующие Office, Project и Visio " +
+                "не будут изменены.",
+                "Несовместимая архитектура Office",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error
+            );
+
+            status.Text =
+                "Установка заблокирована: обнаружен Office x86.";
+
+            return;
+        }
+
         using var identity = WindowsIdentity.GetCurrent();
 
         bool isAdministrator = new WindowsPrincipal(identity)
@@ -525,7 +583,8 @@ public sealed class InstallerForm : Form
         if (!isAdministrator)
         {
             MessageBox.Show(
-                "Для установки Office запустите программу от имени администратора.",
+                "Для установки Office запустите программу " +
+                "от имени администратора.",
                 "Требуются права администратора",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning
@@ -534,8 +593,7 @@ public sealed class InstallerForm : Form
             return;
         }
 
-        RefreshOfficeEdition();
-
+        // Для других редакций Office пока сохраняем предупреждение.
         if (detectedOffice == null ||
             !detectedOffice.ClickToRunDetected ||
             detectedOffice.RequiresCompatibilityCheck)
@@ -546,8 +604,8 @@ public sealed class InstallerForm : Form
                 $"Редакция: {detectedOffice?.Edition ?? "Не определена"}\n" +
                 $"Продукт: {detectedOffice?.ProductIds ?? "Не определён"}\n" +
                 $"Архитектура: {detectedOffice?.Architecture ?? "Не определена"}\n\n" +
-                "Установка Office LTSC 2024 может изменить существующий Office.\n" +
-                "Некоторые сочетания продуктов и архитектур несовместимы.\n\n" +
+                "Установка Office LTSC 2024 может изменить " +
+                "существующий Office.\n\n" +
                 "Продолжить установку?",
                 "Предупреждение о совместимости Office",
                 MessageBoxButtons.YesNo,
@@ -568,8 +626,9 @@ public sealed class InstallerForm : Form
         var confirmation = MessageBox.Show(
             "Будут установлены выбранные приложения:\n\n" +
             selectedApps +
-            "\n\nOffice Deployment Tool может изменить существующую " +
-            "установку Microsoft Office.\n\nПродолжить?",
+            "\n\nOffice Deployment Tool может изменить " +
+            "существующую установку Microsoft Office.\n\n" +
+            "Продолжить?",
             "Подтверждение установки",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question
@@ -588,11 +647,13 @@ public sealed class InstallerForm : Form
 
             odtPath.Text = setupPath;
 
-            status.Text = "Создание конфигурации Office LTSC 2024...";
+            status.Text =
+                "Создание конфигурации Office LTSC 2024...";
 
             string configurationPath = CreateConfiguration();
 
-            status.Text = "Установка Office. Дождитесь завершения...";
+            status.Text =
+                "Установка Office. Дождитесь завершения...";
 
             using var process = Process.Start(new ProcessStartInfo
             {
@@ -609,7 +670,8 @@ public sealed class InstallerForm : Form
             if (process.ExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    $"Office Deployment Tool завершился с кодом {process.ExitCode}."
+                    $"Office Deployment Tool завершился с кодом " +
+                    $"{process.ExitCode}."
                 );
             }
 
@@ -669,7 +731,8 @@ public sealed class InstallerForm : Form
 
         if (File.Exists(setupPath))
         {
-            status.Text = "Проверка ранее распакованного setup.exe...";
+            status.Text =
+                "Проверка ранее распакованного setup.exe...";
 
             try
             {
@@ -724,7 +787,8 @@ public sealed class InstallerForm : Form
             File.Delete(installerPath);
 
             throw new InvalidOperationException(
-                "SHA-256 скачанного ODT не совпадает с проверенным значением."
+                "SHA-256 скачанного ODT не совпадает " +
+                "с проверенным значением."
             );
         }
 
@@ -762,14 +826,17 @@ public sealed class InstallerForm : Form
             );
         }
 
-        status.Text = "Проверка подписи распакованного setup.exe...";
+        status.Text =
+            "Проверка подписи распакованного setup.exe...";
 
         await VerifyAuthenticodeAsync(setupPath);
 
         return setupPath;
     }
 
-    private static async Task VerifyAuthenticodeAsync(string filePath)
+    private static async Task VerifyAuthenticodeAsync(
+        string filePath
+    )
     {
         string escapedPath = filePath.Replace("'", "''");
 
