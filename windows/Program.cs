@@ -573,8 +573,6 @@ public sealed class InstallerForm : Form
 
         try
         {
-            // Используем уже обнаруженные данные Office.
-            // Повторное сканирование при нажатии не выполняем.
             InstallerLogger.Write("Диагностика: подготовка данных.");
 
             var applications = new Dictionary<string, string>();
@@ -595,50 +593,68 @@ public sealed class InstallerForm : Form
 
             InstallerLogger.Write("Диагностика: отчёт сформирован.");
 
-            using var dialog = new SaveFileDialog
-            {
-                Title = "Сохранить отчёт диагностики Office",
-                Filter = "Текстовый файл (*.txt)|*.txt",
-                FileName = "Office-Diagnostics-" +
-                    DateTime.Now.ToString("yyyy-MM-dd-HHmmss") +
-                    ".txt",
-                AddExtension = true,
-                DefaultExt = "txt",
-                OverwritePrompt = true
-            };
+            string documents = Environment.GetFolderPath(
+                Environment.SpecialFolder.MyDocuments
+            );
+
+            string directory = Path.Combine(
+                documents,
+                "Office Installer",
+                "Diagnostics"
+            );
+
+            Directory.CreateDirectory(directory);
+
+            string filename =
+                "Office-Diagnostics-" +
+                DateTime.Now.ToString("yyyy-MM-dd-HHmmss-fff") +
+                ".txt";
+
+            string reportPath = Path.Combine(directory, filename);
 
             InstallerLogger.Write(
-                "Диагностика: открытие окна сохранения.");
-
-            var result = dialog.ShowDialog(this);
-
-            InstallerLogger.Write(
-                "Диагностика: окно сохранения закрыто. Результат: " +
-                result);
-
-            if (result != DialogResult.OK)
-            {
-                InstallerLogger.Write(
-                    "Диагностика: сохранение отменено.");
-                return;
-            }
+                "Диагностика: сохранение отчёта: " + reportPath
+            );
 
             File.WriteAllText(
-                dialog.FileName,
+                reportPath,
                 report,
                 Encoding.UTF8
             );
 
             InstallerLogger.Write(
-                "Диагностика: отчёт сохранён: " +
-                dialog.FileName);
+                "Диагностика: отчёт успешно сохранён."
+            );
 
             status.Text = "Отчёт диагностики сохранён.";
 
+            // Открываем папку с готовым отчётом.
+            try
+            {
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = directory,
+                        UseShellExecute = true
+                    }
+                );
+
+                InstallerLogger.Write(
+                    "Диагностика: папка отчётов открыта."
+                );
+            }
+            catch (Exception openException)
+            {
+                InstallerLogger.Error(
+                    "Открытие папки диагностики",
+                    openException
+                );
+            }
+
             MessageBox.Show(
                 this,
-                "Диагностический отчёт сохранён.\\n\\n" +
-                dialog.FileName,
+                "Диагностический отчёт сохранён.\n\n" +
+                reportPath,
                 "Диагностика завершена",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information
