@@ -76,8 +76,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-echo "[4/6] Validating application..."
+echo "[4/6] Validating and signing application..."
 plutil -lint "$APP/Contents/Info.plist"
+
+codesign --force --sign - --timestamp=none "$APP"
+codesign --verify --deep --strict --verbose=2 "$APP"
 
 echo "[5/6] Creating DMG..."
 mkdir -p "$STAGING"
