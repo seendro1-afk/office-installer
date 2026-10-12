@@ -22,6 +22,7 @@ struct ContentView: View {
     // MARK: - Доступность компонентов
 
     @State private var availableComponents: [String: Bool] = [:]
+    @State private var componentVersions: [String: String] = [:]
     @State private var isCheckingComponents = false
     @State private var componentsChecked = false
     @State private var componentStatus = "Компоненты ещё не проверены."
@@ -552,9 +553,43 @@ struct ContentView: View {
 
         let available = isAvailable(identifier)
 
-        let installed = OfficeCatalog.applications
-            .first(where: { $0.name == name })?
-            .isInstalled ?? false
+        let application = OfficeCatalog.applications
+            .first(where: { $0.name == name })
+
+        let installed = application?.isInstalled ?? false
+        let installedVersion = application?.installedVersion
+        let offeredVersion = componentVersions[identifier]
+
+        let status: String
+
+        if !componentsChecked {
+            status = "Не проверено"
+        } else if !available {
+            if installed,
+               let installedVersion,
+               let offeredVersion,
+               !OfficeVersionComparator.isNewer(
+                   offeredVersion: offeredVersion,
+                   installedVersion: installedVersion
+               ) {
+                status = "Уже установлено (\(installedVersion))"
+            } else {
+                status = "Недоступно"
+            }
+        } else if installed {
+            if let installedVersion,
+               let offeredVersion,
+               OfficeVersionComparator.isNewer(
+                   offeredVersion: offeredVersion,
+                   installedVersion: installedVersion
+               ) {
+                status = "Доступно обновление"
+            } else {
+                status = "Установлено"
+            }
+        } else {
+            status = "Доступно для установки"
+        }
 
         return HStack {
 
@@ -564,30 +599,9 @@ struct ContentView: View {
 
             Spacer()
 
-            if installed {
-
-                Text("Установлено")
-                    .foregroundStyle(.green)
-                    .font(.caption)
-
-            } else if !componentsChecked {
-
-                Text("Не проверено")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-
-            } else if available {
-
-                Text("Доступно")
-                    .foregroundStyle(.blue)
-                    .font(.caption)
-
-            } else {
-
-                Text("Недоступно")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-            }
+            Text(status)
+                .font(.caption)
+                .foregroundStyle(available ? Color.blue : Color.secondary)
         }
     }
 
@@ -642,7 +656,7 @@ struct ContentView: View {
 
         Task {
 
-            let result: Result<[String: Bool], Error> =
+            let result: Result<([String: Bool], [String: String]), Error> =
                 await Task.detached {
 
                     do {
@@ -652,7 +666,12 @@ struct ContentView: View {
                                 packageURL: package
                             )
 
-                        return .success(components)
+                        let versions =
+                            try OfficePackageMetadata.componentVersions(
+                                packageURL: package
+                            )
+
+                        return .success((components, versions))
 
                     } catch {
 
@@ -665,12 +684,29 @@ struct ContentView: View {
 
             switch result {
 
-            case .success(let components):
+            case .success(let data):
+
+                let (components, versions) = data
 
                 availableComponents = components
+                componentVersions = versions
                 componentsChecked = true
 
-                let count = components.values.filter { $0 }.count
+                let selectableIdentifiers = [
+                    "com.microsoft.word",
+                    "com.microsoft.excel",
+                    "com.microsoft.powerpoint",
+                    "com.microsoft.outlook",
+                    "com.microsoft.onenote.mac",
+                    "com.microsoft.OneDrive",
+                    "com.microsoft.teams2",
+                    "com.microsoft.copilot.shim",
+                    "com.microsoft.defender.shim"
+                ]
+
+                let count = selectableIdentifiers.filter {
+                    components[$0] == true
+                }.count
 
                 componentStatus =
                     "Проверка завершена. Доступных компонентов: \(count)."
@@ -678,6 +714,7 @@ struct ContentView: View {
             case .failure(let error):
 
                 availableComponents = [:]
+                componentVersions = [:]
                 componentsChecked = false
 
                 componentStatus = "Ошибка проверки компонентов."

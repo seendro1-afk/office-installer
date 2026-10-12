@@ -5,15 +5,33 @@ struct OfficeApplication: Identifiable {
     let name: String
     let bundleID: String
 
-    var isInstalled: Bool {
-        let paths = [
+    private var applicationPaths: [String] {
+        [
             "/Applications/\(name).app",
             "\(NSHomeDirectory())/Applications/\(name).app"
         ]
+    }
 
-        return paths.contains {
+    var isInstalled: Bool {
+        applicationPaths.contains {
             FileManager.default.fileExists(atPath: $0)
         }
+    }
+
+    var installedVersion: String? {
+        for path in applicationPaths {
+            guard let bundle = Bundle(path: path),
+                  bundle.bundleIdentifier == bundleID,
+                  let version = bundle.object(
+                    forInfoDictionaryKey: "CFBundleVersion"
+                  ) as? String else {
+                continue
+            }
+
+            return version
+        }
+
+        return nil
     }
 }
 
@@ -45,6 +63,23 @@ enum OfficeCatalog {
             bundleID: "com.microsoft.onenote.mac"
         )
     ]
+}
+
+
+// MARK: - Сравнение версий Office
+
+enum OfficeVersionComparator {
+
+    static func isNewer(
+        offeredVersion: String,
+        installedVersion: String
+    ) -> Bool {
+
+        offeredVersion.compare(
+            installedVersion,
+            options: .numeric
+        ) == .orderedDescending
+    }
 }
 
 // MARK: - Проверка корпоративного пакета
