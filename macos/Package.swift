@@ -10,7 +10,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "OfficeInstaller",
-            path: "Sources/OfficeInstaller"
+            path: "Sources/OfficeInstaller",
+            resources: [
+                .process("Resources")
+            ]
         )
     ]
 )

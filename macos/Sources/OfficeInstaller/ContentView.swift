@@ -136,7 +136,7 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
 
                     componentRow(
                         "Microsoft Word",
@@ -182,7 +182,7 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
 
                     componentRow(
                         "Microsoft OneDrive",
@@ -591,18 +591,76 @@ struct ContentView: View {
             status = "Доступно для установки"
         }
 
-        return HStack {
+        let iconNames: [String: String] = [
+            "com.microsoft.word": "word",
+            "com.microsoft.excel": "excel",
+            "com.microsoft.powerpoint": "powerpoint",
+            "com.microsoft.outlook": "outlook",
+            "com.microsoft.onenote.mac": "onenote",
+            "com.microsoft.OneDrive": "onedrive",
+            "com.microsoft.teams2": "teams",
+            "com.microsoft.copilot.shim": "copilot",
+            "com.microsoft.defender.shim": "defender"
+        ]
+
+        return HStack(spacing: 14) {
+
+            Group {
+                if let iconName = iconNames[identifier],
+                   let iconURL = (
+                       Bundle.module.url(
+                           forResource: iconName,
+                           withExtension: "png"
+                       )
+                       ?? Bundle.module.url(
+                           forResource: iconName,
+                           withExtension: "png",
+                           subdirectory: "Icons"
+                       )
+                   ),
+                   let icon = NSImage(contentsOf: iconURL) {
+
+                    Image(nsImage: icon)
+                        .resizable()
+                        .scaledToFit()
+
+                } else {
+
+                    Image(systemName: "square.grid.2x2.app.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 28, height: 28)
 
             Toggle(name, isOn: selected)
                 .toggleStyle(.checkbox)
+                .font(.system(size: 13))
                 .disabled(!available || isInstalling)
 
-            Spacer()
+            Spacer(minLength: 8)
+
+            Circle()
+                .fill(
+                    !componentsChecked
+                        ? Color.gray
+                        : available
+                            ? Color.blue
+                            : installed
+                                ? Color.green
+                                : Color.gray
+                )
+                .frame(width: 6, height: 6)
 
             Text(status)
-                .font(.caption)
-                .foregroundStyle(available ? Color.blue : Color.secondary)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
+        .frame(minHeight: 30)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
     }
 
     // MARK: - Выбрать всё доступное
