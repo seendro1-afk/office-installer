@@ -4,3 +4,9 @@ macos/.build/
 
 # VS Code
 .vscode/
+.DS_Store
+
+# Windows / .NET build files
+windows/**/bin/
+windows/**/obj/
+windows/publish/

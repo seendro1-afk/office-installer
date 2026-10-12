@@ -1,0 +1,77 @@
+<UserControl x:Class="OfficeInstaller.Views.InstallationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="30">
+      <TextBlock x:Name="OfficeTitle" Text="Office Installer LTSC 2024" FontSize="28" FontWeight="Bold" />
+      <TextBlock Text="Установка Microsoft Office для Windows" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,8,0,0" />
+      <Separator />
+      <TextBlock Text="Параметры Office" Style="{StaticResource SectionTitle}" />
+      <ComboBox x:Name="EditionBox" Margin="0,0,0,12" Padding="7" SelectionChanged="Edition_Changed" />
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+        <StackPanel Margin="0,0,12,0">
+          <TextBlock Text="Разрядность" Style="{StaticResource Caption}" Margin="0,0,0,5" />
+          <ComboBox x:Name="ArchitectureBox" Padding="7" SelectionChanged="Selection_Changed">
+            <ComboBoxItem Content="64 бита" Tag="64" IsSelected="True" />
+            <ComboBoxItem Content="32 бита" Tag="32" />
+          </ComboBox>
+        </StackPanel>
+        <StackPanel Grid.Column="1">
+          <TextBlock Text="Язык" Style="{StaticResource Caption}" Margin="0,0,0,5" />
+          <ComboBox x:Name="LanguageBox" Padding="7" SelectionChanged="Selection_Changed" />
+        </StackPanel>
+      </Grid>
+      <Separator />
+      <TextBlock Text="Основные приложения" Style="{StaticResource SectionTitle}" />
+      <TextBlock Text="Выберите приложения, которые необходимо установить." Style="{StaticResource Caption}" />
+      <StackPanel x:Name="ApplicationsPanel" />
+      <Separator />
+      <TextBlock Text="Дополнительные компоненты" Style="{StaticResource SectionTitle}" />
+      <TextBlock Text="Доступность зависит от выбранной редакции Office и платформы Windows." Style="{StaticResource Caption}" />
+      <StackPanel x:Name="OptionalComponentsPanel" />
+      <WrapPanel Margin="0,16,0,0">
+        <Button Content="Выбрать всё доступное" Click="SelectAll_Click" Margin="0,0,8,8" />
+        <Button Content="Снять всё" Click="DeselectAll_Click" Margin="0,0,8,8" />
+      </WrapPanel>
+      <Separator />
+      <TextBlock Text="Проверка компонентов" Style="{StaticResource SectionTitle}" />
+      <Button x:Name="CheckComponentsButton" Content="Проверить компоненты" Click="CheckComponents_Click" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
+      <TextBlock x:Name="ComponentStatus" Text="Компоненты ещё не проверены." Style="{StaticResource Caption}" Margin="0,10,0,0" />
+      <Separator />
+      <TextBlock Text="Загрузка Office" Style="{StaticResource SectionTitle}" />
+      <TextBlock Text="Установочный пакет загружается с официальных серверов Microsoft." Style="{StaticResource Caption}" />
+      <WrapPanel>
+        <Button x:Name="DownloadButton" Content="Скачать Office" Click="Download_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,8,8" />
+        <Button Content="Открыть скачанные пакеты" Click="RestoreSession_Click" Margin="0,0,8,8" />
+      </WrapPanel>
+      <ProgressBar x:Name="DownloadProgress" Height="5" IsIndeterminate="True" Visibility="Collapsed" Margin="0,6,0,10" />
+      <TextBlock x:Name="DownloadStatus" Text="Пакеты ещё не подготовлены." Style="{StaticResource Caption}" Margin="0,2,0,8" />
+      <TextBlock x:Name="PackageStatus" Text="Подпись ещё не проверена." Style="{StaticResource Caption}" Margin="0,0,0,10" />
+      <Button x:Name="OpenSessionButton" Content="Открыть папку пакетов и журнал" Click="OpenSession_Click" IsEnabled="False" HorizontalAlignment="Left" />
+      <Expander Header="Настройки загрузки" Margin="0,14,0,0">
+        <StackPanel Margin="0,10,0,0">
+          <TextBlock Text="Office Deployment Tool загружается автоматически. При необходимости выберите ранее извлечённый setup.exe." Style="{StaticResource Caption}" />
+          <TextBlock x:Name="ToolPathText" Text="Автоматическая загрузка ODT" Style="{StaticResource Caption}" />
+          <WrapPanel>
+            <Button Content="Выбрать setup.exe" Click="ChooseTool_Click" Margin="0,0,8,8" />
+            <Button Content="Загружать автоматически" Click="AutomaticTool_Click" Margin="0,0,8,8" />
+            <Button Content="Сайт Microsoft" Click="MicrosoftSite_Click" Margin="0,0,8,8" />
+          </WrapPanel>
+        </StackPanel>
+      </Expander>
+      <Separator />
+      <TextBlock Text="Установка Office" Style="{StaticResource SectionTitle}" />
+      <WrapPanel>
+        <Button x:Name="InstallButton" Content="Установить выбранное" Click="Install_Click" Style="{StaticResource PrimaryButton}" IsEnabled="False" Margin="0,0,8,8" />
+        <Button Content="Показать конфигурацию" Click="Preview_Click" Margin="0,0,8,8" />
+      </WrapPanel>
+      <ProgressBar x:Name="InstallProgress" Height="5" IsIndeterminate="True" Visibility="Collapsed" Margin="0,6,0,10" />
+      <TextBlock x:Name="InstallationStatus" Text="Для установки сначала подготовьте пакеты Office." Style="{StaticResource Caption}" Margin="0,2,0,0" />
+      <Separator />
+      <TextBlock Text="Корпоративная лицензия" Style="{StaticResource SectionTitle}" />
+      <TextBlock Text="Используйте лицензию, соответствующую выбранной редакции Office. Управление лицензией доступно в приложении Office: «Файл» → «Учётная запись»." Style="{StaticResource Caption}" />
+      <TextBlock Text="Пакет VL Serializer (.pkg) предназначен для macOS. В Windows отдельный активатор остаётся вне этого приложения и не включается в сборку." Style="{StaticResource Caption}" Margin="0,0,0,0" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
