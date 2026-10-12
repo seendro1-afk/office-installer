@@ -4,9 +4,12 @@ Windows-версия в том же репозитории, что и прило
 «Установка Office» и «Восстановление Office». Реализованы диагностика,
 подготовка и загрузка пакетов, запуск установки и штатные способы восстановления.
 Проверены логика на искусственных данных и сборка; реальные операции, подписи,
-UAC и GUI ещё предстоит проверить на Windows. Версия не опубликована в Releases.
+UAC и GUI ещё предстоит проверить на Windows. Версия опубликована как
+[тестовый релиз Windows 0.3](https://github.com/seendro1-afk/office-installer/releases/tag/windows-v0.3.0).
 
 ## Запуск на Windows
+
+[Скачать архив Windows x64 0.3](https://github.com/seendro1-afk/office-installer/releases/download/windows-v0.3.0/OfficeInstaller-Windows-x64-v0.3.zip).
 
 Если подготовлен архив `windows/publish/OfficeInstaller-Windows-x64-v0.3.zip`,
 распакуйте его целиком на Windows и запустите `OfficeInstaller.exe` из папки
