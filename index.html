@@ -1,1 +1,55 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Office Installer</title><style>body{margin:0;background:#0d1324;color:#f3f5fa;font:17px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh}.card{max-width:700px;padding:42px;border-radius:24px;background:#1a2540;box-shadow:0 20px 80px #050915}h1{font-size:42px;margin:0 0 12px}p{line-height:1.6;color:#cad3e5}.btn{display:inline-block;background:#5587ff;color:white;padding:15px 22px;border-radius:12px;text-decoration:none;margin:10px 10px 10px 0}.secondary{background:#35435f}small{color:#abb9d3}</style></head><body><main class="card"><h1>Office Installer</h1><p>Установка Microsoft Office LTSC 2024 с выбором приложений: Word, Excel, PowerPoint, Outlook, OneNote и Access (Windows).</p><a class="btn" href="https://github.com/seendro1-afk/office-installer/releases">Установщик Windows</a><a class="btn secondary" href="https://learn.microsoft.com/office/ltsc/2024/deploy">Инструкция Microsoft</a><p><small>Для Windows требуется действующая корпоративная лицензия Office LTSC 2024. Версия для macOS находится в разработке. Пока релиз не опубликован, кнопка ведёт на страницу релизов без файла.</small></p></main></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Office Installer для macOS: выборочная установка приложений Microsoft Office. Релиз v1.0.1 для Apple Silicon и macOS 14 или новее.">
+  <title>Office Installer для macOS</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0d1324; color: #f3f5fa; font: 17px/1.6 system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; padding: 24px; }
+    .card { width: 100%; max-width: 760px; padding: 42px; border-radius: 24px; background: #1a2540; box-shadow: 0 20px 80px #050915; }
+    .release { margin: 0 0 12px; color: #b8caff; font-size: 14px; font-weight: 600; }
+    h1 { font-size: clamp(30px, 6vw, 42px); line-height: 1.2; margin: 0 0 16px; }
+    h2 { font-size: 21px; margin: 28px 0 10px; }
+    p, li { color: #cad3e5; }
+    p { margin: 12px 0; }
+    a { color: #b8caff; text-underline-offset: 3px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0; }
+    .btn { display: inline-block; background: #5587ff; color: #080f24; font-weight: 700; padding: 14px 20px; border-radius: 12px; text-decoration: none; text-align: center; }
+    .secondary { background: #35435f; color: #f3f5fa; }
+    a:focus-visible { outline: 3px solid #f3f5fa; outline-offset: 4px; }
+    .notice { border-left: 3px solid #8dafff; padding-left: 16px; }
+    ol { padding-left: 24px; }
+    li + li { margin-top: 8px; }
+    footer { border-top: 1px solid #35435f; margin-top: 28px; padding-top: 16px; font-size: 14px; }
+    @media (max-width: 520px) { body { padding: 16px; } .card { padding: 24px; } .actions { flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <p class="release">v1.0.1 · macOS 14+ · Apple Silicon</p>
+    <h1>Office Installer для macOS</h1>
+    <p>Выберите нужные приложения Microsoft Office: Word, Excel, PowerPoint, Outlook и OneNote. Установочный пакет загружается с официальных серверов Microsoft.</p>
+    <p>OneDrive, Teams, Copilot и Defender доступны для выбора, если соответствующие компоненты присутствуют в пакете Microsoft.</p>
+    <div class="actions">
+      <a class="btn" href="https://github.com/seendro1-afk/office-installer/releases/download/v1.0.1/OfficeInstaller-v1.0.1-macOS-arm64.dmg">Скачать для macOS · v1.0.1</a>
+      <a class="btn secondary" href="https://github.com/seendro1-afk/office-installer/releases/tag/v1.0.1">Описание релиза и SHA-256</a>
+    </div>
+    <p>Требуются Mac с чипом M1 или новее, macOS 14 или новее, интернет и права администратора для установки Office. Windows-сборка в текущем релизе не опубликована.</p>
+    <h2>Как установить</h2>
+    <ol>
+      <li>Откройте DMG и перетащите Office Installer.app в Applications.</li>
+      <li>Запустите приложение и нажмите «Скачать Office». Дождитесь проверки подписи и компонентов.</li>
+      <li>Выберите доступные приложения и нажмите «Установить выбранное». Подтвердите установку и предоставьте права администратора.</li>
+    </ol>
+    <h2>Первый запуск</h2>
+    <p class="notice">Версия v1.0.1 использует ad-hoc подпись и не нотариализована Apple. Если macOS блокирует запуск, закройте предупреждение и откройте System Settings → Privacy &amp; Security → Open Anyway для Office Installer. Не отключайте Gatekeeper.</p>
+    <p><a href="https://github.com/seendro1-afk/office-installer/blob/main/README.md">Подробная инструкция и исходный код</a> · <a href="https://github.com/seendro1-afk/office-installer/issues/new">Сообщить об ошибке</a></p>
+    <footer>
+      <p>Для использования Microsoft Office нужна действующая лицензия. Office Installer не предоставляет лицензии Microsoft.</p>
+      <p>Независимый открытый проект, не связанный с Microsoft.</p>
+    </footer>
+  </main>
+</body>
+</html>
