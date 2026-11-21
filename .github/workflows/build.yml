@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a GitHub release for the version in build-macos.sh"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -59,10 +64,16 @@ jobs:
           path: macos/dist/*.dmg
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="v$(sed -n 's/.*OfficeInstaller-v\([0-9.]*\)-macOS.*/\1/p' build-macos.sh)"
+          fi
+          echo "Release tag: $TAG"
           cat > notes.md <<EOF
           Исправлен вылет сразу после запуска на Mac, где приложение не собиралось (ошибка загрузки ресурсов SwiftPM, #3).
 
@@ -72,5 +83,6 @@ jobs:
 
           SHA-256: \`${{ steps.sum.outputs.sha }}\`
           EOF
-          gh release create "${GITHUB_REF_NAME}" "${{ steps.sum.outputs.dmg }}" \
-            --title "Office Installer ${GITHUB_REF_NAME}" --notes-file notes.md
+          gh release create "$TAG" "${{ steps.sum.outputs.dmg }}" \
+            --target "$GITHUB_SHA" \
+            --title "Office Installer $TAG" --notes-file notes.md
