@@ -11,8 +11,8 @@ let package = Package(
         .executableTarget(
             name: "OfficeInstaller",
             path: "Sources/OfficeInstaller",
-            resources: [
-                .process("Resources")
+            exclude: [
+                "Resources"
             ]
         )
     ]

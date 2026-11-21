@@ -608,14 +608,14 @@ struct ContentView: View {
             Group {
                 if let iconName = iconNames[identifier],
                    let iconURL = (
-                       Bundle.module.url(
-                           forResource: iconName,
-                           withExtension: "png"
-                       )
-                       ?? Bundle.module.url(
+                       Bundle.main.url(
                            forResource: iconName,
                            withExtension: "png",
                            subdirectory: "Icons"
+                       )
+                       ?? Bundle.main.url(
+                           forResource: iconName,
+                           withExtension: "png"
                        )
                    ),
                    let icon = NSImage(contentsOf: iconURL) {

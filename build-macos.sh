@@ -44,7 +44,10 @@ cp "$BIN" "$APP/Contents/MacOS/OfficeInstaller"
 chmod +x "$APP/Contents/MacOS/OfficeInstaller"
 
 echo "[3/6] Copying resources and icon..."
-find "$BIN_DIR" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$APP/Contents/Resources/" \;
+ICONS_DIR="$MACOS/Sources/OfficeInstaller/Resources/Icons"
+if [[ -d "$ICONS_DIR" ]]; then
+    cp -R "$ICONS_DIR" "$APP/Contents/Resources/Icons"
+fi
 cp "$ICON" "$APP/Contents/Resources/OfficeInstaller.icns"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
