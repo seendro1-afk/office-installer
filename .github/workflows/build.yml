@@ -1,0 +1,76 @@
+name: Build macOS
+
+on:
+  push:
+    branches: [main, "fix/**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          uname -m
+          sw_vers
+          swift --version
+
+      - name: Build app and DMG
+        run: ./build-macos.sh
+
+      - name: Smoke test (app must stay running)
+        run: |
+          APP="macos/dist/Office Installer.app"
+          # Make sure the SwiftPM build directory cannot be used as a fallback
+          mv macos/.build macos/.build-hidden
+          "$APP/Contents/MacOS/OfficeInstaller" > launch.log 2>&1 &
+          PID=$!
+          sleep 15
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "App is still running after 15 s"
+            kill "$PID"
+          else
+            CODE=0; wait "$PID" || CODE=$?
+            echo "App exited with code $CODE"
+            cat launch.log
+            exit 1
+          fi
+          mv macos/.build-hidden macos/.build
+
+      - name: Checksum
+        id: sum
+        run: |
+          DMG=$(ls macos/dist/*.dmg)
+          SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
+          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "SHA-256: $SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: macos/dist/*.dmg
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<EOF
+          Исправлен вылет сразу после запуска на Mac, где приложение не собиралось (ошибка загрузки ресурсов SwiftPM, #3).
+
+          Требования: macOS 14 или новее, Apple Silicon.
+
+          Сборка использует ad-hoc подпись и не нотариализована Apple. Если macOS блокирует запуск: System Settings → Privacy & Security → Open Anyway.
+
+          SHA-256: \`${{ steps.sum.outputs.sha }}\`
+          EOF
+          gh release create "${GITHUB_REF_NAME}" "${{ steps.sum.outputs.dmg }}" \
+            --title "Office Installer ${GITHUB_REF_NAME}" --notes-file notes.md
