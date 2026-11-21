@@ -6,7 +6,7 @@ MACOS="$ROOT/macos"
 DIST="$MACOS/dist"
 APP="$DIST/Office Installer.app"
 STAGING="$DIST/dmg-content"
-DMG="$DIST/OfficeInstaller-v1.0.1-macOS-arm64.dmg"
+DMG="$DIST/OfficeInstaller-v1.0.2-macOS-arm64.dmg"
 ICON="$MACOS/assets/OfficeInstaller.icns"
 
 echo "=== Office Installer: macOS Build ==="
@@ -66,9 +66,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.1</string>
+    <string>1.0.2</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>3</string>
     <key>CFBundleIconFile</key>
     <string>OfficeInstaller</string>
     <key>LSMinimumSystemVersion</key>
