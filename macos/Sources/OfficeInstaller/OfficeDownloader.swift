@@ -42,9 +42,16 @@ private final class OfficeDownloadDelegate: NSObject,
 
     private let destination: URL
     private let progressHandler: @Sendable (Double) -> Void
+    private let statusHandler: @Sendable (String) -> Void
     private let completionHandler: @Sendable (Result<URL, Error>) -> Void
 
     private var completed = false
+
+    // Повторы при обрыве связи или таймауте.
+    // При наличии resumeData загрузка продолжается с места обрыва.
+    static let maxRetries = 8
+    private var retries = 0
+    private let sourceURL: URL
 
     private static let allowedHosts: Set<String> = [
         "go.microsoft.com",
@@ -54,13 +61,37 @@ private final class OfficeDownloadDelegate: NSObject,
     ]
 
     init(
+        sourceURL: URL,
         destination: URL,
         progressHandler: @escaping @Sendable (Double) -> Void,
+        statusHandler: @escaping @Sendable (String) -> Void,
         completionHandler: @escaping @Sendable (Result<URL, Error>) -> Void
     ) {
+        self.sourceURL = sourceURL
         self.destination = destination
         self.progressHandler = progressHandler
+        self.statusHandler = statusHandler
         self.completionHandler = completionHandler
+    }
+
+    private static func isRetryable(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else {
+            return false
+        }
+        switch nsError.code {
+        case NSURLErrorTimedOut,
+             NSURLErrorNetworkConnectionLost,
+             NSURLErrorNotConnectedToInternet,
+             NSURLErrorCannotConnectToHost,
+             NSURLErrorCannotFindHost,
+             NSURLErrorDNSLookupFailed,
+             NSURLErrorResourceUnavailable,
+             NSURLErrorSecureConnectionFailed:
+            return true
+        default:
+            return false
+        }
     }
 
     static func isTrustedURL(_ url: URL) -> Bool {
@@ -197,8 +228,46 @@ private final class OfficeDownloadDelegate: NSObject,
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
-        if let error {
+        guard let error else {
+            return
+        }
+
+        lock.lock()
+        let alreadyCompleted = completed
+        let canRetry = !alreadyCompleted &&
+            retries < Self.maxRetries &&
+            Self.isRetryable(error)
+        if canRetry {
+            retries += 1
+        }
+        let attempt = retries
+        lock.unlock()
+
+        guard canRetry else {
             finish(.failure(error))
+            return
+        }
+
+        let resumeData = (error as NSError)
+            .userInfo[NSURLSessionDownloadTaskResumeDataKey] as? Data
+
+        statusHandler(
+            resumeData != nil
+                ? "Связь прервалась. Продолжаем загрузку (попытка \(attempt) из \(Self.maxRetries))..."
+                : "Связь прервалась. Начинаем загрузку заново (попытка \(attempt) из \(Self.maxRetries))..."
+        )
+
+        // Небольшая пауза перед повтором: 2, 4, 8... секунд, не больше 30.
+        let delay = min(30.0, pow(2.0, Double(attempt)))
+
+        DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
+            let task: URLSessionDownloadTask
+            if let resumeData {
+                task = session.downloadTask(withResumeData: resumeData)
+            } else {
+                task = session.downloadTask(with: self.sourceURL)
+            }
+            task.resume()
         }
     }
 }
@@ -252,22 +321,12 @@ final class OfficeDownloader: ObservableObject {
         isDownloading = true
         statusMessage = "Подключение к Microsoft..."
 
-        let delegate = OfficeDownloadDelegate(
-            destination: destination,
-            progressHandler: { [weak self] value in
-                Task { @MainActor in
-                    self?.progress = value
-                    self?.statusMessage = "Загрузка Office..."
-                }
-            },
-            completionHandler: { _ in }
-        )
-
-        // Делегат и продолжение создаются вместе ниже.
-        self.delegate = delegate
-
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 60
+        // Таймаут без данных на один запрос. При обрыве загрузка
+        // продолжается с места остановки (см. OfficeDownloadDelegate).
+        configuration.timeoutIntervalForRequest = 180
+        configuration.timeoutIntervalForResource = 6 * 60 * 60
+        configuration.waitsForConnectivity = true
 
         defer {
             isDownloading = false
@@ -279,11 +338,17 @@ final class OfficeDownloader: ObservableObject {
         return try await withCheckedThrowingContinuation { continuation in
 
             let activeDelegate = OfficeDownloadDelegate(
+                sourceURL: url,
                 destination: destination,
                 progressHandler: { [weak self] value in
                     Task { @MainActor in
                         self?.progress = value
                         self?.statusMessage = "Загрузка Office..."
+                    }
+                },
+                statusHandler: { [weak self] message in
+                    Task { @MainActor in
+                        self?.statusMessage = message
                     }
                 },
                 completionHandler: { result in
