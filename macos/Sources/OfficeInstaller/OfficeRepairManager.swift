@@ -50,6 +50,18 @@ enum OfficeRepairManager {
             bundleName: "Microsoft OneNote.app",
             componentIdentifier: "com.microsoft.onenote.mac",
             packageIdentifier: "com.microsoft.package.Microsoft_OneNote.app"
+        ),
+        OfficeApplication(
+            name: "OneDrive",
+            bundleName: "OneDrive.app",
+            componentIdentifier: "com.microsoft.OneDrive",
+            packageIdentifier: "com.microsoft.OneDrive"
+        ),
+        OfficeApplication(
+            name: "Teams",
+            bundleName: "Microsoft Teams.app",
+            componentIdentifier: "com.microsoft.teams2",
+            packageIdentifier: "com.microsoft.teams2"
         )
     ]
 
@@ -80,9 +92,9 @@ enum OfficeRepairManager {
                 "CFBundleShortVersionString"
             ] as? String
 
-            let registered = isPackageRegistered(
-                application.packageIdentifier
-            )
+            let registered =
+                isPackageRegistered(application.packageIdentifier) ||
+                (installed && hasInstallerReceipt(for: appURL))
 
             let available =
                 availableComponents[
@@ -97,6 +109,29 @@ enum OfficeRepairManager {
                 packageRegistered: registered,
                 availableForInstallation: available
             )
+        }
+    }
+
+    /// Проверяет, установлен ли файл каким-либо пакетом
+    /// (pkgutil --file-info выводит строку pkgid).
+    private static func hasInstallerReceipt(for url: URL) -> Bool {
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/pkgutil")
+        process.arguments = ["--file-info", url.path]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            let output = String(data: data, encoding: .utf8) ?? ""
+            return output.contains("pkgid: ")
+        } catch {
+            return false
         }
     }
 

@@ -75,7 +75,7 @@ jobs:
           fi
           echo "Release tag: $TAG"
           cat > notes.md <<EOF
-          Загрузка Office продолжается с места обрыва и автоматически повторяется при таймауте или потере связи.
+          Вкладка «Восстановление Office» и статусы компонентов теперь видят установленные Microsoft Teams и OneDrive.
 
           Требования: macOS 14 или новее, Apple Silicon.
 
