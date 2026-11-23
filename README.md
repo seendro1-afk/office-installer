@@ -2,9 +2,9 @@
 
 Русскоязычное приложение для выборочной установки Microsoft Office из официального установочного пакета Microsoft.
 
-**Текущий релиз: [v1.0.2](https://github.com/seendro1-afk/office-installer/releases/tag/v1.0.2)** — macOS 14 или новее, Apple Silicon (M1 и новее).
+**Текущий релиз: [v1.0.3](https://github.com/seendro1-afk/office-installer/releases/tag/v1.0.3)** — macOS 14 или новее, Apple Silicon (M1 и новее).
 
-[Скачать DMG v1.0.2](https://github.com/seendro1-afk/office-installer/releases/download/v1.0.2/OfficeInstaller-v1.0.2-macOS-arm64.dmg) · [Все релизы](https://github.com/seendro1-afk/office-installer/releases)
+[Скачать DMG v1.0.3](https://github.com/seendro1-afk/office-installer/releases/download/v1.0.3/OfficeInstaller-v1.0.3-macOS-arm64.dmg) · [Все релизы](https://github.com/seendro1-afk/office-installer/releases)
 
 ## Возможности
 
@@ -25,11 +25,11 @@ Windows-сборка в текущей версии проекта не опуб
 
 ## Установка и первый запуск
 
-1. Скачайте [OfficeInstaller-v1.0.2-macOS-arm64.dmg](https://github.com/seendro1-afk/office-installer/releases/download/v1.0.2/OfficeInstaller-v1.0.2-macOS-arm64.dmg).
+1. Скачайте [OfficeInstaller-v1.0.3-macOS-arm64.dmg](https://github.com/seendro1-afk/office-installer/releases/download/v1.0.3/OfficeInstaller-v1.0.3-macOS-arm64.dmg).
 2. Откройте DMG и перетащите **Office Installer.app** в **Applications**.
 3. Запустите Office Installer.
 
-Релиз v1.0.2 использует ad-hoc подпись и не нотариализован Apple. Если macOS блокирует запуск, закройте предупреждение, откройте **System Settings → Privacy & Security**, нажмите **Open Anyway** для Office Installer и подтвердите запуск. Не отключайте Gatekeeper.
+Релиз v1.0.3 использует ad-hoc подпись и не нотариализован Apple. Если macOS блокирует запуск, закройте предупреждение, откройте **System Settings → Privacy & Security**, нажмите **Open Anyway** для Office Installer и подтвердите запуск. Не отключайте Gatekeeper.
 
 ### Установка компонентов Office
 
@@ -44,13 +44,13 @@ Windows-сборка в текущей версии проекта не опуб
 В Терминале выполните команду, указав путь к скачанному файлу:
 
 ```sh
-shasum -a 256 ~/Downloads/OfficeInstaller-v1.0.2-macOS-arm64.dmg
+shasum -a 256 ~/Downloads/OfficeInstaller-v1.0.3-macOS-arm64.dmg
 ```
 
-Ожидаемый SHA-256 для v1.0.2:
+Ожидаемый SHA-256 для v1.0.3:
 
 ```text
-18ace1497c2434acc835740af7875e4bbf70bcc2610c7b32ebec5ec5d0c8a6fa
+49a23081338c4ebdb003dee28c6564f18e2ce0d75f7ae1976e489ed34772e171
 ```
 
 ## Сборка из исходного кода
