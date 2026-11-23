@@ -160,12 +160,18 @@ enum LicenseVerifier {
             )
         }
 
-        // Требуем успешную проверку нотариального удостоверения.
-        guard output.contains(
-            "Notarization: trusted by the Apple notary service"
-        ) else {
+        // Нотариальная проверка: pkgutil выводит строку Notarization,
+        // только если смог получить ответ Apple (нужен доступ к серверам
+        // Apple, если билет не вшит в пакет). Отсутствие строки не считаем
+        // ошибкой: подпись Developer ID Microsoft и доверие Apple
+        // к сертификату уже проверены выше. Явный отказ — ошибка.
+        if let line = output
+            .components(separatedBy: .newlines)
+            .map({ $0.trimmingCharacters(in: .whitespaces) })
+            .first(where: { $0.hasPrefix("Notarization:") }),
+           !line.contains("trusted by the Apple notary service") {
             throw LicenseVerificationError.verificationFailed(
-                "Не подтверждена нотариальная проверка Apple."
+                "Apple не подтвердила нотариальную проверку пакета: \(line)"
             )
         }
     }

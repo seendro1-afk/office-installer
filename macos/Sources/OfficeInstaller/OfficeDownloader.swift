@@ -249,7 +249,7 @@ private final class OfficeDownloadDelegate: NSObject,
         }
 
         let resumeData = (error as NSError)
-            .userInfo[NSURLSessionDownloadTaskResumeDataKey] as? Data
+            .userInfo[NSURLSessionDownloadTaskResumeData] as? Data
 
         statusHandler(
             resumeData != nil
