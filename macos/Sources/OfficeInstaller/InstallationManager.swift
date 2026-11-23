@@ -4,11 +4,14 @@ struct OfficeApplication: Identifiable {
     let id: String
     let name: String
     let bundleID: String
+    /// Имя .app, если оно отличается от name (например, OneDrive.app).
+    var bundleFileName: String? = nil
 
     private var applicationPaths: [String] {
-        [
-            "/Applications/\(name).app",
-            "\(NSHomeDirectory())/Applications/\(name).app"
+        let file = bundleFileName ?? "\(name).app"
+        return [
+            "/Applications/\(file)",
+            "\(NSHomeDirectory())/Applications/\(file)"
         ]
     }
 
@@ -61,6 +64,17 @@ enum OfficeCatalog {
             id: "onenote",
             name: "Microsoft OneNote",
             bundleID: "com.microsoft.onenote.mac"
+        ),
+        .init(
+            id: "onedrive",
+            name: "Microsoft OneDrive",
+            bundleID: "com.microsoft.OneDrive",
+            bundleFileName: "OneDrive.app"
+        ),
+        .init(
+            id: "teams",
+            name: "Microsoft Teams",
+            bundleID: "com.microsoft.teams2"
         )
     ]
 }
