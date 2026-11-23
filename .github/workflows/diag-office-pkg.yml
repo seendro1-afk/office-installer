@@ -1,0 +1,31 @@
+name: Diagnose Office package
+
+on:
+  push:
+    branches: ["diag/**"]
+
+jobs:
+  diag:
+    runs-on: macos-15
+    steps:
+      - name: Download Microsoft package (same link as the app)
+        run: |
+          curl -sSL -o office.pkg -w "final URL: %{url_effective}\nHTTP: %{http_code}\n" \
+            "https://go.microsoft.com/fwlink/p/?linkid=2244846"
+          ls -lh office.pkg
+      - name: Signature (same check as LicenseVerifier)
+        run: pkgutil --check-signature office.pkg || true
+      - name: Choices (same call as availableComponents)
+        run: |
+          set +e
+          installer -showChoicesXML -pkg office.pkg -target / > choices.plist 2> choices.err
+          echo "exit: $?"; cat choices.err
+          python3 - <<'PY'
+          import plistlib
+          d = plistlib.load(open('choices.plist','rb'))
+          def walk(items, depth=0):
+              for it in items:
+                  print('  '*depth + f"{it.get('choiceIdentifier')} enabled={it.get('choiceIsEnabled')} selected={it.get('choiceIsSelected')} visible={it.get('choiceIsVisible')}")
+                  walk(it.get('childItems', []), depth+1)
+          walk(d)
+          PY
